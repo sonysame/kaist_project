@@ -1,26 +1,109 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --background: #f5f6fb;
+  --surface: #ffffff;
+  --surface-2: #f0f1f8;
+  --foreground: #1d1f2c;
+  --muted: #6b6f86;
+  --line: #e3e5f0;
+  --accent: #5b4fe9;
+  --accent-strong: #4a3fd6;
+  --accent-soft: #ecebfe;
+  --warm: #ff8a4c;
+  --warm-soft: #fff1e8;
+  --success: #12a87a;
+  --success-soft: #e3f7ef;
+  --danger: #d6453a;
+  --danger-soft: #fdecea;
+  --shadow: 0 1px 2px rgb(24 27 54 / 0.04), 0 4px 16px rgb(24 27 54 / 0.06);
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --spk-1: #5b4fe9;
+  --spk-2: #f0702e;
+  --spk-3: #12a87a;
+  --spk-4: #c2378f;
+  --spk-5: #1c8fd6;
+  --spk-6: #b38600;
+  --spk-7: #7c5cd6;
+  --spk-8: #5c5f73;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f1017;
+    --surface: #181a24;
+    --surface-2: #20222e;
+    --foreground: #ecedf5;
+    --muted: #9a9db3;
+    --line: #2a2d3c;
+    --accent: #8b80ff;
+    --accent-strong: #a199ff;
+    --accent-soft: #25224a;
+    --warm: #ff9c66;
+    --warm-soft: #3a2518;
+    --success: #3fd1a0;
+    --success-soft: #133229;
+    --danger: #ff7b6e;
+    --danger-soft: #3b1c1a;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
+
+    --spk-1: #8b80ff;
+    --spk-2: #ff9c66;
+    --spk-3: #3fd1a0;
+    --spk-4: #f07cc4;
+    --spk-5: #5cb8ff;
+    --spk-6: #f2c94c;
+    --spk-7: #b49cff;
+    --spk-8: #a3a7bd;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-warm: var(--warm);
+  --color-warm-soft: var(--warm-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --shadow-card: var(--shadow);
+  --font-sans: var(--font-geist-sans), var(--font-noto-kr), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 재생 막대 */
+input[type="range"].seek {
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--pct, 0%), var(--line) var(--pct, 0%));
+  cursor: pointer;
+}
+input[type="range"].seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 3px solid var(--accent);
+}
+input[type="range"].seek::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 3px solid var(--accent);
 }

@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+!.env.example
+
+# scripts/copy-ffmpeg.mjs 가 만드는 파일
+/public/ffmpeg
