@@ -11,6 +11,22 @@ import { BookOpen, ChevronLeft, ChevronRight, Download, Shuffle, Trash, Volume }
 
 type Mode = "list" | "cards" | "quiz";
 
+const STARTER_KEY = "starter-vocab-added";
+function starterDone() {
+  try {
+    return localStorage.getItem(STARTER_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function markStarterDone() {
+  try {
+    localStorage.setItem(STARTER_KEY, "1");
+  } catch {
+    // 저장소를 못 쓰는 브라우저면 서버 쪽 "비어 있을 때만" 조건으로 충분하다
+  }
+}
+
 export function VocabList() {
   const [items, setItems] = useState<VocabEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,13 +34,22 @@ export function VocabList() {
   const [hideMeaning, setHideMeaning] = useState(false);
 
   useEffect(() => {
-    vocabFetch("/api/vocab")
-      .then(async (r) => {
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error);
-        setItems(data);
-      })
-      .catch((e) => setError(e.message));
+    const fetchList = async () => {
+      const r = await vocabFetch("/api/vocab");
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error);
+      return data as VocabEntry[];
+    };
+    (async () => {
+      let list = await fetchList();
+      // 처음 온 브라우저면 기본 단어를 한 번만 넣어 준다 (다 지운 뒤에 다시 넣지 않도록 표시를 남김)
+      if (!list.length && !starterDone()) {
+        const r = await vocabFetch("/api/vocab/starter", { method: "POST" });
+        markStarterDone();
+        if (r.ok && (await r.json()).inserted) list = await fetchList();
+      }
+      setItems(list);
+    })().catch((e) => setError(e.message));
   }, []);
 
   async function remove(id: number) {
@@ -119,7 +144,7 @@ export function VocabList() {
                 )}
                 <button
                   onClick={() => remove(v.id)}
-                  className="ml-auto grid h-8 w-8 place-items-center rounded-full text-muted opacity-0 hover:bg-danger-soft hover:text-danger focus:opacity-100 group-hover:opacity-100"
+                  className="ml-auto grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-danger-soft hover:text-danger"
                   aria-label="삭제"
                   title="삭제"
                 >
