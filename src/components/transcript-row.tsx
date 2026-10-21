@@ -100,7 +100,7 @@ export const TranscriptRow = memo(function TranscriptRow({
             aria-pressed={showKo}
             aria-label={showKo ? "해석 접기" : "해석 보기"}
             title={alwaysKo ? "'해석 항상 보기'가 켜져 있어요" : showKo ? "해석 접기" : "해석 보기"}
-            className={`rounded-full px-2 py-1 text-[11px] font-bold tracking-wide transition disabled:cursor-default ${
+            className={`rounded-full px-2.5 py-1.5 text-xs font-bold tracking-wide transition disabled:cursor-default ${
               showKo ? "bg-accent text-white" : "bg-surface text-muted ring-1 ring-line hover:text-accent"
             }`}
           >
