@@ -31,6 +31,14 @@ export async function currentUser(): Promise<User | null> {
 export const unauthorized = () => Response.json({ error: "로그인이 필요해요." }, { status: 401 });
 
 /** 관리자 이메일 목록: 환경 변수 ADMIN_EMAILS에 쉼표로 적는다 (예: a@gmail.com,b@gmail.com) */
+/** 관리자 API 입구: 관리자가 아니면 돌려보낼 응답을, 맞으면 null을 준다 */
+export async function requireAdmin() {
+  const user = await currentUser();
+  if (!user) return unauthorized();
+  if (!isAdmin(user)) return Response.json({ error: "관리자만 할 수 있어요." }, { status: 403 });
+  return null;
+}
+
 export function isAdmin(user: User | null) {
   const list = (process.env.ADMIN_EMAILS ?? "")
     .split(",")

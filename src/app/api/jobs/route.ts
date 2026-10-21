@@ -1,7 +1,7 @@
 import { BUCKET, supabaseAdmin } from "@/lib/supabase-server";
 import { audioPath, chunkLayout, chunkPath } from "@/lib/layout";
 import { currentUser, unauthorized } from "@/lib/auth";
-import { DAILY_UPLOAD_LIMIT, recordUpload, uploadsToday } from "@/lib/quota";
+import { getUploadLimit, recordUpload, uploadsToday } from "@/lib/quota";
 import { SAMPLE_JOB_ID } from "@/lib/sample";
 
 // 32kbps mono MP3 기준 Supabase 무료 플랜 파일 한도(50MB)에 들어가는 길이
@@ -37,9 +37,10 @@ export async function POST(request: Request) {
   }
 
   // 하루 업로드 제한 (한국 시간 기준, 지운 작업도 셈)
-  if ((await uploadsToday(user.id)) >= DAILY_UPLOAD_LIMIT) {
+  const limit = await getUploadLimit();
+  if ((await uploadsToday(user.id)) >= limit) {
     return Response.json(
-      { error: `오늘은 ${DAILY_UPLOAD_LIMIT}개까지 올릴 수 있어요. 내일 다시 올려 주세요.`, limitReached: true },
+      { error: `오늘은 ${limit}개까지 올릴 수 있어요. 내일 다시 올려 주세요.`, limitReached: true },
       { status: 429 },
     );
   }

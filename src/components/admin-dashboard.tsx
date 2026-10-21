@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { clock } from "@/lib/format";
 import { AdminGemini, type GeminiStats } from "./admin-gemini";
+import { useAuth } from "./auth-provider";
 
 type Stats = {
   gemini: GeminiStats;
@@ -13,6 +14,7 @@ type Stats = {
     audioHours: number;
     vocab: number;
     uploadsToday: number;
+    uploadLimit: number;
     status: Record<string, number>;
   };
   storage: { files: number; bytes: number; limit: number };
@@ -79,6 +81,8 @@ export function AdminDashboard() {
         <Tile label="오늘 업로드" value={`${t.uploadsToday}개`} sub="한국 시간 0시 기준" />
         <Tile label="저장된 단어" value={`${t.vocab}개`} />
       </div>
+
+      <UploadLimitCard current={t.uploadLimit} onChanged={load} />
 
       {/* 저장 공간 */}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -149,7 +153,7 @@ export function AdminDashboard() {
                   <td className="px-4 py-3 text-muted">{dateTime(u.createdAt)}</td>
                   <td className="px-4 py-3 text-muted">{dateTime(u.lastSignInAt)}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{u.jobs}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{u.uploadsToday}/3</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{u.uploadsToday}/{t.uploadLimit}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{u.vocab}</td>
                 </tr>
               ))}
@@ -183,6 +187,60 @@ export function AdminDashboard() {
         </ul>
       </section>
     </div>
+  );
+}
+
+/** 한 사람이 하루에 올릴 수 있는 오디오 수 바꾸기 */
+function UploadLimitCard({ current, onChanged }: { current: number; onChanged: () => void }) {
+  const [draft, setDraft] = useState(String(current));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const { refreshQuota } = useAuth();
+  const n = Number(draft);
+  const valid = draft !== "" && Number.isInteger(n) && n >= 0 && n <= 100;
+
+  async function save() {
+    setSaving(true);
+    setMessage(null);
+    const r = await fetch("/api/admin/upload-limit", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ limit: n }),
+    });
+    const data = await r.json().catch(() => ({}));
+    setSaving(false);
+    if (!r.ok) return setMessage(data.error ?? "저장하지 못했어요.");
+    setMessage(`하루 업로드 한도를 ${n}개로 바꿨어요. 30초 안에 모두에게 적용돼요.`);
+    onChanged();
+    refreshQuota();
+  }
+
+  return (
+    <section className="max-w-2xl rounded-2xl border border-line bg-surface p-5 shadow-card">
+      <h2 className="font-bold">하루 업로드 한도</h2>
+      <p className="mt-1 text-xs text-muted">한 사람이 하루(한국 시간 0시 기준)에 올릴 수 있는 오디오 수예요. 0이면 아무도 올릴 수 없어요.</p>
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm tabular-nums"
+          aria-label="하루 업로드 한도"
+        />
+        <span className="text-sm text-muted">개 / 1인</span>
+        <button
+          onClick={save}
+          disabled={!valid || n === current || saving}
+          className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+        >
+          {saving ? "저장 중…" : "적용"}
+        </button>
+      </div>
+      {message && <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-sm">{message}</p>}
+    </section>
   );
 }
 

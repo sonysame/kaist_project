@@ -29,7 +29,7 @@ export function HomeGate({ children }: { children: ReactNode }) {
   return (
     <div className="rounded-2xl border-2 border-dashed border-line bg-surface-2/60 p-6 text-center sm:p-8">
       <p className="text-lg font-bold">무료로 시작해 보세요</p>
-      <p className="mt-1 text-sm text-muted">구글 계정으로 로그인하면 하루 3개까지 오디오를 올릴 수 있어요.</p>
+      <p className="mt-1 text-sm text-muted">구글 계정으로 로그인하면 오디오를 올리고 나만의 단어장을 만들 수 있어요.</p>
       {notice && <p className="mt-4 rounded-lg bg-warm-soft px-3 py-2 text-sm">{notice.text}</p>}
       <button
         onClick={() => signIn(notice?.next ?? "/")}

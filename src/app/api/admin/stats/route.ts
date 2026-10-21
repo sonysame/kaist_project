@@ -1,6 +1,6 @@
 import { BUCKET, supabaseAdmin } from "@/lib/supabase-server";
 import { currentUser, isAdmin, unauthorized } from "@/lib/auth";
-import { startOfTodayKST } from "@/lib/quota";
+import { getUploadLimit, startOfTodayKST } from "@/lib/quota";
 import { dailyLimits, startOfGeminiDay } from "@/lib/gemini-usage";
 import { getModels } from "@/lib/models";
 
@@ -17,7 +17,7 @@ export async function GET() {
   const db = supabaseAdmin();
   const today = startOfTodayKST().toISOString();
   const geminiDay = startOfGeminiDay();
-  const [users, jobs, vocab, uploads, dbSize, storage, geminiLog, models] = await Promise.all([
+  const [users, jobs, vocab, uploads, dbSize, storage, geminiLog, models, uploadLimit] = await Promise.all([
     db.auth.admin.listUsers({ perPage: 1000 }),
     db.from("jobs").select("id, user_id, status, filename, duration_sec, created_at").order("created_at", { ascending: false }),
     db.from("vocab").select("user_id"),
@@ -26,6 +26,7 @@ export async function GET() {
     storageUsage(),
     db.from("gemini_log").select("model, kind, status, input_tokens, output_tokens").gte("created_at", geminiDay.toISOString()),
     getModels(),
+    getUploadLimit(),
   ]);
   const err = users.error ?? jobs.error ?? vocab.error ?? uploads.error;
   if (err) return Response.json({ error: err.message }, { status: 500 });
@@ -77,6 +78,7 @@ export async function GET() {
       audioHours: totalSeconds / 3600,
       vocab: vocab.data?.length ?? 0,
       uploadsToday: uploads.data?.length ?? 0,
+      uploadLimit,
       status: statusCount,
     },
     storage: { files: storage.files, bytes: storage.bytes, limit: FREE_STORAGE_BYTES },

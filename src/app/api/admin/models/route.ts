@@ -1,12 +1,5 @@
-import { currentUser, isAdmin, unauthorized } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { ROLE_INFO, getModels, modelOptions, setModel, type ModelRole } from "@/lib/models";
-
-async function requireAdmin() {
-  const user = await currentUser();
-  if (!user) return unauthorized();
-  if (!isAdmin(user)) return Response.json({ error: "관리자만 할 수 있어요." }, { status: 403 });
-  return null;
-}
 
 /** 지금 쓰는 모델과 고를 수 있는 모델 목록 */
 export async function GET() {

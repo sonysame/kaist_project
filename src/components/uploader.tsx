@@ -49,7 +49,7 @@ export function Uploader() {
       });
       const job = (await res.json()) as CreateResponse & { error?: string };
       if (!res.ok) throw new Error(job.error ?? "작업을 만들지 못했어요.");
-      refreshQuota(); // 헤더의 "오늘 업로드 n/3" 갱신
+      refreshQuota(); // 헤더의 "오늘 업로드 1/3" 갱신
 
       const parts = await splitAudio(job.layout);
       const uploads = [
