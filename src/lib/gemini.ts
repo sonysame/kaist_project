@@ -50,29 +50,6 @@ async function tracked<T>(kind: GeminiKind, model: string, call: () => Promise<T
 
 const seconds = (offset: unknown) => (typeof offset === "string" ? parseFloat(offset) : Number(offset ?? 0));
 
-/** 대본에서 드래그한 부분만 문맥에 맞게 한국어로 옮긴다 */
-export async function translatePhrase(phrase: string, context: string): Promise<string> {
-  const ai = client();
-  const TRANSLATE_MODEL = await getModel("text");
-  const prompt = [
-    "You help Korean learners of English. Translate only the selected part into natural Korean,",
-    "using the surrounding sentences to pick the right meaning. Reply with the Korean translation only.",
-    `Context: ${context}`,
-    `Selected: ${phrase}`,
-  ].join("\n");
-  try {
-    const res = await tracked(
-      "translate",
-      TRANSLATE_MODEL,
-      () => ai.models.generateContent({ model: TRANSLATE_MODEL, contents: prompt }),
-      generateUsage,
-    );
-    return (res.text ?? "").trim();
-  } catch (err) {
-    rethrow(err);
-  }
-}
-
 /** 오디오 구간 하나를 화자 분리 + 단어 타임스탬프와 함께 전사한다. offset은 원본 기준 구간 시작 시각. */
 export async function transcribeChunk(audio: Blob, offset: number): Promise<Word[]> {
   const ai = client();
