@@ -13,16 +13,9 @@ export type GeminiStats = {
 
 const ROLES: Role[] = ["transcribe", "text", "correct"];
 
-// 1시간 파일 하나에 역할마다 대략 몇 번 부르는지 (20분 구간 3개, 구간마다 번역 약 2번 + 광고·이름 1번, 교정 1번)
-const PER_HOUR: Record<Role, { calls: number; note: string }> = {
-  transcribe: { calls: 3, note: "20분마다 1번" },
-  text: { calls: 7, note: "번역 약 6번 + 광고·이름 1번 (+ 단어를 누를 때마다 1번)" },
-  correct: { calls: 1, note: "파일마다 1번" },
-};
-
 const kTokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n));
 
-/** 관리자 페이지의 Gemini 부분: 오늘 사용량, 모델 바꾸기, 1시간 파일 예시 */
+/** 관리자 페이지의 Gemini 부분: 오늘 사용량, 모델 바꾸기 */
 export function AdminGemini({ stats, onChanged }: { stats: GeminiStats; onChanged: () => void }) {
   const [roles, setRoles] = useState<RoleInfo | null>(null);
   const [options, setOptions] = useState<Record<Role, string[]> | null>(null);
@@ -59,13 +52,8 @@ export function AdminGemini({ stats, onChanged }: { stats: GeminiStats; onChange
     }
   }
 
-  const usageOf = (model: string) => stats.usage.find((u) => u.model === model);
   const rolesOf = (model: string) => ROLES.filter((r) => stats.models[r] === model).map((r) => roles?.[r].label ?? r);
   const resetKST = new Date(stats.since).toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Seoul" });
-
-  // 1시간 파일 예시: 같은 모델을 여러 역할이 쓰면 합쳐서 계산
-  const perModel = new Map<string, number>();
-  for (const r of ROLES) perModel.set(stats.models[r], (perModel.get(stats.models[r]) ?? 0) + PER_HOUR[r].calls);
 
   return (
     <div className="space-y-6">
@@ -124,8 +112,8 @@ export function AdminGemini({ stats, onChanged }: { stats: GeminiStats; onChange
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-        <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+      <section>
+        <div className="max-w-2xl rounded-2xl border border-line bg-surface p-5 shadow-card">
           <h2 className="font-bold">모델 설정</h2>
           <p className="mt-1 text-xs text-muted">바꾸면 다시 배포하지 않아도 30초 안에 적용돼요. 목록은 지금 API 키로 쓸 수 있는 모델이에요.</p>
           <div className="mt-4 space-y-4">
@@ -158,35 +146,6 @@ export function AdminGemini({ stats, onChanged }: { stats: GeminiStats; onChange
             ))}
           </div>
           {message && <p className="mt-4 rounded-lg bg-surface-2 px-3 py-2 text-sm">{message}</p>}
-        </div>
-
-        <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
-          <h2 className="font-bold">1시간짜리 파일 하나에 쓰는 양 (예시)</h2>
-          <ul className="mt-3 space-y-3 text-sm">
-            {ROLES.map((r) => (
-              <li key={r}>
-                <p>
-                  <span className="font-semibold">{roles?.[r].label ?? r}</span>{" "}
-                  <span className="font-mono text-xs text-muted">{stats.models[r]}</span>
-                </p>
-                <p className="text-muted">
-                  약 <b className="text-foreground">{PER_HOUR[r].calls}번</b> · {PER_HOUR[r].note}
-                </p>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4 rounded-xl bg-surface-2 p-3 text-xs leading-relaxed text-muted">
-            {[...perModel].map(([model, calls]) => {
-              const limit = stats.usage.find((u) => u.model === model)?.limit ?? usageOf(model)?.limit;
-              return (
-                <p key={model}>
-                  <span className="font-mono">{model}</span>: 1시간 파일당 {calls}번
-                  {limit ? ` → 하루 약 ${Math.floor(limit / calls)}개까지` : ""}
-                </p>
-              );
-            })}
-            <p className="mt-2">가장 먼저 막히는 모델이 하루에 처리할 수 있는 파일 수를 정해요. 2시간 파일은 약 2배를 써요.</p>
-          </div>
         </div>
       </section>
     </div>
