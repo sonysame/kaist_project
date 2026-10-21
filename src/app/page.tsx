@@ -1,12 +1,7 @@
 import { Uploader } from "@/components/uploader";
 import { RecentJobs } from "@/components/recent-jobs";
-import { BookOpen, Languages, Sparkles, Users } from "@/components/icons";
-
-const STEPS = [
-  { icon: Users, title: "화자별 대본", body: "누가 말했는지 나눠서 영어로 받아 적어요." },
-  { icon: Languages, title: "마우스만 올리면 해석", body: "문장에 마우스를 올리면 한국어 뜻이 떠요." },
-  { icon: BookOpen, title: "나만의 단어장", body: "모르는 단어를 누르면 문맥에 맞는 뜻과 함께 저장돼요." },
-];
+import { HowItWorksComic } from "@/components/how-it-works-comic";
+import { Sparkles } from "@/components/icons";
 
 export default function Home() {
   return (
@@ -37,20 +32,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        {STEPS.map(({ icon: Icon, title, body }, i) => (
-          <div key={title} className="rounded-2xl border border-line bg-surface p-5 shadow-card">
-            <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
-                <Icon />
-              </span>
-              <span className="text-xs font-bold text-muted">STEP {i + 1}</span>
-            </div>
-            <h3 className="mt-3 font-bold">{title}</h3>
-            <p className="mt-1 text-sm text-muted">{body}</p>
-          </div>
-        ))}
-      </section>
+      <HowItWorksComic />
 
       <section>
         <div className="mb-4 flex items-end justify-between">

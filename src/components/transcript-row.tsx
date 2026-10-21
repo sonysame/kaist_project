@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import { clock } from "@/lib/format";
 import type { Utterance } from "@/lib/types";
 import { Megaphone, Play } from "./icons";
@@ -41,7 +41,7 @@ type Props = {
   onWord: (u: Utterance, wordIdx: number, rect: DOMRect) => void;
 };
 
-/** 대본 한 줄. 마우스를 올리면 한국어가 보이고, 단어를 누르면 뜻 풀이 창이 열린다. */
+/** 대본 한 줄. KOR 버튼을 누르면 한국어 해석이 펼쳐지고, 단어를 누르면 뜻 풀이 창이 열린다. */
 export const TranscriptRow = memo(function TranscriptRow({
   u,
   name,
@@ -53,6 +53,8 @@ export const TranscriptRow = memo(function TranscriptRow({
   onPlayOnce,
   onWord,
 }: Props) {
+  const [koOpen, setKoOpen] = useState(false);
+  const showKo = alwaysKo || koOpen;
   const ko =
     u.text_ko === null ? (
       <span className="text-sm text-muted">해석을 만드는 중…</span>
@@ -89,17 +91,30 @@ export const TranscriptRow = memo(function TranscriptRow({
         )}
       </div>
 
-      <div className="relative min-w-0 pr-9">
-        <button
-          onClick={() => onPlayOnce(u)}
-          className={`absolute right-0 top-0 grid h-8 w-8 place-items-center rounded-full bg-surface text-accent shadow-card ring-1 ring-line transition hover:bg-accent hover:text-white focus:opacity-100 ${
-            active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          }`}
-          title="이 문장만 듣기"
-          aria-label="이 문장만 듣기"
-        >
-          <Play width={13} height={13} className="translate-x-px" />
-        </button>
+      <div className="relative min-w-0 pr-11">
+        {/* 오른쪽 위: 이 문장만 듣기 + 해석 펼치기 */}
+        <div className="absolute right-0 top-0 flex flex-col items-center gap-1.5">
+          <button
+            onClick={() => onPlayOnce(u)}
+            className="grid h-8 w-8 place-items-center rounded-full bg-surface text-accent shadow-card ring-1 ring-line transition hover:bg-accent hover:text-white"
+            title="이 문장만 듣기"
+            aria-label="이 문장만 듣기"
+          >
+            <Play width={13} height={13} className="translate-x-px" />
+          </button>
+          <button
+            onClick={() => setKoOpen((o) => !o)}
+            disabled={alwaysKo}
+            aria-pressed={showKo}
+            aria-label={showKo ? "해석 접기" : "해석 보기"}
+            title={alwaysKo ? "'해석 항상 보기'가 켜져 있어요" : showKo ? "해석 접기" : "해석 보기"}
+            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold tracking-wide transition disabled:cursor-default ${
+              showKo ? "bg-accent text-white" : "bg-surface text-muted ring-1 ring-line hover:text-accent"
+            }`}
+          >
+            KOR
+          </button>
+        </div>
         {showSpeaker && (
           <div className="mb-1 flex items-center gap-2 text-sm">
             <span className="font-bold" style={{ color: u.is_ad ? "var(--muted)" : speakerColor(u.speaker) }}>
@@ -134,18 +149,7 @@ export const TranscriptRow = memo(function TranscriptRow({
             </span>
           ))}
         </p>
-        {alwaysKo ? (
-          <p className="mt-1 leading-relaxed text-muted">{ko}</p>
-        ) : (
-          // 줄이 밀리지 않도록 문장 아래에 말풍선처럼 띄운다
-          <div
-            role="tooltip"
-            className="pointer-events-none invisible absolute left-0 right-0 top-full z-20 mt-2 rounded-xl border border-line bg-surface px-4 py-3 leading-relaxed opacity-0 shadow-card transition-opacity delay-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-          >
-            <span className="mb-1 block text-[11px] font-bold tracking-wide text-accent">해석</span>
-            {ko}
-          </div>
-        )}
+        {showKo && <p className="mt-1 leading-relaxed text-muted">{ko}</p>}
       </div>
     </div>
   );

@@ -107,3 +107,25 @@ input[type="range"].seek::-moz-range-thumb {
   background: var(--surface);
   border: 3px solid var(--accent);
 }
+
+/* 메인 페이지 만화 캐릭터: 살짝 들썩이고, 입을 움직이고, 가끔 눈을 깜빡인다 */
+@keyframes puppet-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(-2deg); }
+}
+@keyframes puppet-talk {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.35); }
+}
+@keyframes puppet-blink {
+  0%, 94%, 100% { transform: scaleY(1); }
+  97% { transform: scaleY(0.1); }
+}
+.puppet-bob { animation: puppet-bob 2.4s ease-in-out infinite; transform-origin: bottom center; }
+li:nth-child(2) .puppet-bob { animation-delay: -0.8s; }
+li:nth-child(3) .puppet-bob { animation-delay: -1.6s; }
+.puppet-mouth { animation: puppet-talk 0.45s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.puppet-eye { animation: puppet-blink 4s infinite; transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) {
+  .puppet-bob, .puppet-mouth, .puppet-eye { animation: none; }
+}

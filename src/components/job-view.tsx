@@ -395,7 +395,7 @@ export function JobView({ id }: { id: string }) {
 
           <Card title="보기 설정">
             <div className="space-y-3">
-              <Switch checked={alwaysKo} onChange={setAlwaysKo} label="해석 항상 보기" hint="끄면 문장에 마우스를 올릴 때만 보여요" />
+              <Switch checked={alwaysKo} onChange={setAlwaysKo} label="해석 항상 보기" hint="끄면 문장마다 KOR 버튼을 눌러 볼 수 있어요" />
               <Switch checked={follow} onChange={setFollow} label="재생 위치 따라가기" />
               {adBlocks.length > 0 && (
                 <Switch
@@ -434,7 +434,7 @@ export function JobView({ id }: { id: string }) {
             <h2 className="text-lg font-bold">대본</h2>
             <p className="text-xs text-muted">
               <span className="rounded bg-accent-soft px-1.5 py-0.5 font-semibold text-accent">단어</span>를 누르면 뜻 ·
-              문장에 마우스를 올리면 해석
+              KOR 버튼을 누르면 해석
             </p>
           </div>
           <div>
