@@ -9,6 +9,7 @@ import { AD_LABEL, Avatar, TranscriptRow } from "./transcript-row";
 import { WordPopover, type WordTarget } from "./word-popover";
 import { Player } from "./player";
 import { Theater } from "./theater";
+import { SelectionTranslate } from "./selection-translate";
 import { ArrowLeft, Clock, Download, Film, Megaphone, Text, Trash, Users } from "./icons";
 
 type RunState =
@@ -38,6 +39,7 @@ export function JobView({ id }: { id: string }) {
   const [theaterOpen, setTheaterOpen] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
   const runToken = useRef(0);
+  const transcriptBox = useRef<HTMLDivElement>(null);
   const loopRange = useRef<Range | null>(null);
   const stopAt = useRef<number | null>(null); // "이 문장만 듣기"로 재생할 때 멈출 시각
   const scrollToAdPending = useRef(false);
@@ -445,10 +447,10 @@ export function JobView({ id }: { id: string }) {
             <h2 className="text-lg font-bold">대본</h2>
             <p className="text-xs text-muted">
               <span className="rounded bg-accent-soft px-1.5 py-0.5 font-semibold text-accent">단어</span>를 누르면 뜻 ·
-              KOR 버튼을 누르면 해석
+              KOR 버튼을 누르면 해석 · 드래그하면 그 부분만 해석
             </p>
           </div>
-          <div>
+          <div ref={transcriptBox}>
             {utterances.map((u, i) => (
               <TranscriptRow
                 key={u.id}
@@ -484,6 +486,8 @@ export function JobView({ id }: { id: string }) {
           onClose={() => setTheaterOpen(false)}
         />
       )}
+
+      <SelectionTranslate containerRef={transcriptBox} />
 
       {target && (
         <WordPopover key={`${target.u.id}:${target.wordIdx}`} target={target} jobId={id} onClose={closePopover} />

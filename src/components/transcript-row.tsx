@@ -129,7 +129,7 @@ export const TranscriptRow = memo(function TranscriptRow({
             </button>
           </div>
         )}
-        <p className="text-[17px] leading-[1.8]">
+        <p data-en className="text-[17px] leading-[1.8]">
           {u.words.map((w, i) => (
             <span key={i}>
               {i > 0 && !/^[,.?!;:]/.test(w.t) && " "}
