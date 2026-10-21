@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { clock } from "@/lib/format";
+import { SAMPLE_TITLES } from "@/lib/sample";
 import type { Job } from "@/lib/types";
 import { Clock, FileAudio } from "./icons";
 
@@ -63,7 +64,7 @@ export function RecentJobs() {
                       <span className="shrink-0 rounded-full bg-warm-soft px-2 py-0.5 text-[11px] font-bold text-warm">샘플</span>
                     )}
                     <span className="truncate font-semibold group-hover:text-accent">
-                      {j.is_sample ? "Acquired 팟캐스트 · Tencent 편" : j.filename}
+                      {(j.is_sample && SAMPLE_TITLES[j.id]) || j.filename}
                     </span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted">{new Date(j.created_at).toLocaleDateString("ko-KR")}</p>

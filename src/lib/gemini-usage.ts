@@ -40,6 +40,22 @@ export function startOfGeminiDay(now = new Date()) {
   return new Date(now.getTime() - sinceMidnight - now.getMilliseconds());
 }
 
+/** 다음 한도 초기화 시각 (내일 태평양 시간 0시) */
+export const nextGeminiReset = (now = new Date()) => startOfGeminiDay(new Date(now.getTime() + 24 * 3600_000));
+
+/** 이 모델을 오늘 한도만큼 이미 썼는지 (앱이 직접 센 성공 횟수 기준) */
+export async function dailyLimitReached(model: string) {
+  const limit = dailyLimits()[model];
+  if (!limit) return false;
+  const { count, error } = await supabaseAdmin()
+    .from("gemini_log")
+    .select("id", { count: "exact", head: true })
+    .eq("model", model)
+    .eq("status", "ok")
+    .gte("created_at", startOfGeminiDay().toISOString());
+  return !error && (count ?? 0) >= limit;
+}
+
 /** 호출 한 번을 기록한다. 기록이 실패해도 본래 작업은 그대로 진행한다. */
 export function logGemini(entry: {
   model: string;

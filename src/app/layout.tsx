@@ -41,9 +41,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
-        <footer className="border-t border-line py-6 text-center text-xs text-muted">
-          화자 분리·번역은 Google Gemini 무료 모델로 처리돼요
-        </footer>
         </AuthProvider>
       </body>
     </html>

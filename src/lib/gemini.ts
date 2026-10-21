@@ -12,8 +12,12 @@ function client() {
   return new GoogleGenAI({ apiKey });
 }
 
-/** 무료 한도 초과(429)를 구분해서 화면에 알려 주기 위한 에러 */
-export class RateLimitError extends Error {}
+/** 무료 한도 초과(429)를 구분해서 화면에 알려 주기 위한 에러. daily면 하루 한도라 내일까지 기다려야 한다. */
+export class RateLimitError extends Error {
+  constructor(message: string, readonly daily = false) {
+    super(message);
+  }
+}
 
 function isRateLimited(err: unknown) {
   const status = (err as { status?: number })?.status;
@@ -23,6 +27,9 @@ function isRateLimited(err: unknown) {
 
 function rethrow(err: unknown): never {
   if (isRateLimited(err)) {
+    // 하루 한도 초과는 오류 내용의 quotaId에 PerDay가 들어 있다 (분당 한도는 PerMinute)
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/PerDay/i.test(msg)) throw new RateLimitError("오늘 Gemini 무료 한도를 다 썼어요.", true);
     throw new RateLimitError("Gemini 무료 사용 한도에 도달했어요. 잠시 후 다시 시도해 주세요.");
   }
   throw err instanceof Error ? err : new Error(err instanceof Error ? err.message : String(err));

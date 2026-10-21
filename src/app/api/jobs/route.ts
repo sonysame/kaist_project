@@ -1,11 +1,9 @@
 import { BUCKET, supabaseAdmin } from "@/lib/supabase-server";
 import { audioPath, chunkLayout, chunkPath } from "@/lib/layout";
 import { currentUser, unauthorized } from "@/lib/auth";
+import { MAX_DURATION_SEC, maxDurationText } from "@/lib/audio-limits";
 import { getUploadLimit, recordUpload, uploadsToday } from "@/lib/quota";
-import { SAMPLE_JOB_ID } from "@/lib/sample";
-
-// 32kbps mono MP3 기준 Supabase 무료 플랜 파일 한도(50MB)에 들어가는 길이
-const MAX_DURATION_SEC = 3.3 * 3600;
+import { SAMPLE_JOB_IDS } from "@/lib/sample";
 
 const LIST_COLUMNS = "id, filename, duration_sec, chunk_count, status, error, created_at";
 
@@ -13,14 +11,20 @@ const LIST_COLUMNS = "id, filename, duration_sec, chunk_count, status, error, cr
 export async function GET() {
   const user = await currentUser();
   const db = supabaseAdmin();
-  const [sample, mine] = await Promise.all([
-    db.from("jobs").select(LIST_COLUMNS).eq("id", SAMPLE_JOB_ID).maybeSingle(),
+  const [samples, mine] = await Promise.all([
+    db.from("jobs").select(LIST_COLUMNS).in("id", SAMPLE_JOB_IDS).order("created_at"),
     user
-      ? db.from("jobs").select(LIST_COLUMNS).eq("user_id", user.id).neq("id", SAMPLE_JOB_ID).order("created_at", { ascending: false }).limit(30)
+      ? db
+          .from("jobs")
+          .select(LIST_COLUMNS)
+          .eq("user_id", user.id)
+          .not("id", "in", `(${SAMPLE_JOB_IDS.join(",")})`)
+          .order("created_at", { ascending: false })
+          .limit(30)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (sample.error || mine.error) return Response.json({ error: (sample.error ?? mine.error)!.message }, { status: 500 });
-  const list = [...(sample.data ? [{ ...sample.data, is_sample: true }] : []), ...(mine.data ?? [])];
+  if (samples.error || mine.error) return Response.json({ error: (samples.error ?? mine.error)!.message }, { status: 500 });
+  const list = [...(samples.data ?? []).map((j) => ({ ...j, is_sample: true })), ...(mine.data ?? [])];
   return Response.json(list);
 }
 
@@ -33,7 +37,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "파일 이름과 길이가 필요해요." }, { status: 400 });
   }
   if (durationSec > MAX_DURATION_SEC) {
-    return Response.json({ error: "3시간 20분이 넘는 오디오는 아직 지원하지 않아요." }, { status: 400 });
+    return Response.json({ error: `${maxDurationText()}이 넘는 오디오는 올릴 수 없어요.` }, { status: 400 });
   }
 
   // 하루 업로드 제한 (한국 시간 기준, 지운 작업도 셈)

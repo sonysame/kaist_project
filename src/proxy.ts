@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { SAMPLE_JOB_ID } from "@/lib/sample";
+import { isSampleJob } from "@/lib/sample";
 
 /**
  * 모든 페이지 요청에서 로그인 세션을 새로 고치고(쿠키 갱신),
@@ -27,7 +27,7 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   // 샘플 학습 자료는 로그인하지 않아도 볼 수 있다
-  const isSample = path === `/jobs/${SAMPLE_JOB_ID}`;
+  const isSample = path.startsWith("/jobs/") && isSampleJob(path.slice("/jobs/".length));
   const needsLogin = !isSample && (path.startsWith("/jobs") || path.startsWith("/vocab") || path.startsWith("/admin"));
   if (needsLogin && !data.user) {
     const url = request.nextUrl.clone();

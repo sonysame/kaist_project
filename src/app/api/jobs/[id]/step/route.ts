@@ -4,6 +4,8 @@ import { RateLimitError, analyzeTranscript, findCorrections, transcribeChunk, tr
 import { mergeSpeakers } from "@/lib/speakers";
 import { requireJobOwner } from "@/lib/auth";
 import { applyTranscriptCorrections } from "@/lib/corrections-db";
+import { dailyLimitReached, nextGeminiReset } from "@/lib/gemini-usage";
+import { getModel } from "@/lib/models";
 import { buildUtterances, chooseCut, keepRange, mapSpeakers } from "@/lib/pipeline";
 import type { Word } from "@/lib/types";
 
@@ -46,10 +48,20 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/jobs/[id]/
   try {
     if (job.status === "error") await db.from("jobs").update({ status: "processing", error: null }).eq("id", id);
 
+    // 이 단계에 쓸 모델의 하루 한도를 이미 다 썼으면 Gemini를 부르지 않고 내일 이어서 하라고 알린다
+    if (await dailyLimitReached(await getModel(chunk?.status === "pending" ? "transcribe" : "text"))) {
+      throw new RateLimitError("오늘 Gemini 무료 한도를 다 썼어요.", true);
+    }
+
     // 모든 구간이 끝나면 마지막으로 대본 전체를 읽고 광고 표시 + 화자 이름 추측
     if (!chunk) {
       if (!job.analyzed) await analyze(id, job.speaker_names ?? {});
       await db.from("jobs").update({ status: "done", error: null, analyzed: true }).eq("id", id);
+      // 받아 적기가 끝난 구간 파일은 더 쓰지 않으니 지워서 저장 공간을 아낀다 (재생은 full.mp3)
+      await db.storage
+        .from(BUCKET)
+        .remove((chunks ?? []).map((c) => chunkPath(id, c.idx)))
+        .catch((e) => console.error("구간 파일을 지우지 못함:", e));
       return Response.json({ done: true, action: "analyzed" });
     }
 
@@ -61,7 +73,12 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/jobs/[id]/
     return Response.json({ done: false, action: "translated", chunk: chunk.idx });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (err instanceof RateLimitError) return Response.json({ error: message, rateLimited: true }, { status: 429 });
+    if (err instanceof RateLimitError) {
+      return Response.json(
+        { error: message, rateLimited: true, daily: err.daily, resumeAt: err.daily ? nextGeminiReset().toISOString() : null },
+        { status: 429 },
+      );
+    }
     console.error(err);
     await db.from("jobs").update({ status: "error", error: message }).eq("id", id);
     if (chunk) await db.from("chunks").update({ error: message }).eq("job_id", id).eq("idx", chunk.idx);

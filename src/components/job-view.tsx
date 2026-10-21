@@ -15,6 +15,7 @@ type RunState =
   | { kind: "idle" }
   | { kind: "running"; label: string }
   | { kind: "waiting"; until: number; message: string }
+  | { kind: "paused"; resumeAt: number }
   | { kind: "failed"; message: string };
 
 type Range = { start: number; end: number };
@@ -91,6 +92,13 @@ export function JobView({ id }: { id: string }) {
       if (!alive()) return;
       if (res?.ok) {
         if (body.done) break;
+        continue;
+      }
+      if (res?.status === 429 && body.daily) {
+        // 하루 한도를 다 썼으면 한도가 다시 생길 때까지 멈춘다. 그때 이 창이 열려 있으면 알아서 이어 간다.
+        const resumeAt = new Date(body.resumeAt).getTime() + 60_000;
+        setRun({ kind: "paused", resumeAt });
+        while (alive() && Date.now() < resumeAt) await new Promise((r) => setTimeout(r, 60_000));
         continue;
       }
       if (res?.status === 429) {
@@ -578,6 +586,7 @@ function StatusPanel({
               {run.kind === "waiting" &&
                 `무료 한도에 걸려 잠시 기다리는 중… ${Math.max(0, Math.ceil((run.until - now) / 1000))}초`}
               {failed && <span className="text-danger">처리가 멈췄어요</span>}
+              {run.kind === "paused" && "오늘 처리 한도를 다 써서 쉬는 중"}
               {run.kind === "idle" && !failed && "준비 중…"}
             </span>
             <span className="tabular-nums text-muted">
@@ -598,7 +607,22 @@ function StatusPanel({
               </button>
             </div>
           )}
-          {!failed && <p className="mt-2 text-xs text-muted">먼저 끝난 부분부터 아래에 나타나요. 창을 닫아도 다시 열면 이어서 처리돼요.</p>}
+          {run.kind === "paused" && (
+            <p className="mt-3 rounded-lg bg-warm-soft px-3 py-2 text-sm">
+              Gemini 무료 한도를 오늘 다 썼어요. 한국 시간{" "}
+              <b>
+                {new Date(run.resumeAt).toLocaleString("ko-KR", {
+                  month: "long",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  timeZone: "Asia/Seoul",
+                })}
+              </b>
+              부터 나머지 구간을 이어서 처리해요. 이 창을 열어 두거나 그 뒤에 다시 열면 돼요.
+            </p>
+          )}
+          {!failed && run.kind !== "paused" && <p className="mt-2 text-xs text-muted">먼저 끝난 부분부터 아래에 나타나요. 창을 닫아도 다시 열면 이어서 처리돼요.</p>}
         </>
       )}
     </div>

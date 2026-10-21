@@ -35,10 +35,7 @@ export default function Home() {
 
       <section>
         <div className="mb-4 flex items-end justify-between">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight">내 학습 자료</h2>
-            <p className="mt-1 text-sm text-muted">올린 오디오를 다시 열어 이어서 공부할 수 있어요.</p>
-          </div>
+          <h2 className="text-xl font-bold tracking-tight">내 학습 자료</h2>
         </div>
         {/* 샘플은 로그인하지 않아도 보이고, 로그인하면 내가 올린 자료가 함께 나온다 */}
         <RecentJobs />
