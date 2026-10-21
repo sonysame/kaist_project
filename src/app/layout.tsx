@@ -24,13 +24,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <AuthProvider>
         <header className="sticky top-0 z-40 border-b border-line bg-surface/90 backdrop-blur">
           <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
-            <Link href="/" className="flex items-center gap-2.5">
+            <Link href="/" className="flex shrink-0 items-center gap-2.5">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-accent to-warm text-white shadow-card">
                 <Headphones width={18} height={18} />
               </span>
               <span className="leading-tight">
                 <span className="block text-[17px] font-black tracking-tight">ListenUp</span>
-                <span className="block text-[11px] font-medium text-muted">진짜 영어로 듣기 공부</span>
+                <span className="hidden text-[11px] font-medium text-muted sm:block">진짜 영어로 듣기 공부</span>
               </span>
             </Link>
             {/* 현재 주소로 메뉴를 강조하는 부분만 요청 시점에 그린다 */}

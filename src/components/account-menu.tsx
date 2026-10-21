@@ -16,7 +16,7 @@ export function AccountMenu() {
     return (
       <button
         onClick={() => signIn()}
-        className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-semibold shadow-card hover:border-accent"
+        className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-semibold shadow-card hover:border-accent"
       >
         <GoogleMark className="h-4 w-4" />
         로그인
@@ -29,15 +29,15 @@ export function AccountMenu() {
   const full = quota ? quota.used >= quota.limit : false;
 
   return (
-    <div className="relative flex items-center gap-2">
+    <div className="relative flex shrink-0 items-center gap-2">
       {quota && (
         <span
-          className={`rounded-full px-2.5 py-1 text-xs font-bold tabular-nums ${
+          className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold tabular-nums ${
             full ? "bg-danger-soft text-danger" : "bg-surface-2 text-muted"
           }`}
           title="한국 시간 자정에 다시 채워져요"
         >
-          오늘 업로드 {quota.used}/{quota.limit}
+          <span className="hidden sm:inline">오늘 업로드 </span>{quota.used}/{quota.limit}
         </span>
       )}
       <button

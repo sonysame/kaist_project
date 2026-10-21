@@ -2,7 +2,6 @@ import { Uploader } from "@/components/uploader";
 import { RecentJobs } from "@/components/recent-jobs";
 import { HomeGate } from "@/components/home-gate";
 import { HowItWorksComic } from "@/components/how-it-works-comic";
-import { Sparkles } from "@/components/icons";
 
 export default function Home() {
   return (
@@ -18,10 +17,7 @@ export default function Home() {
         />
         <div className="relative grid items-center gap-8 lg:grid-cols-[1.1fr_1fr]">
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">
-              <Sparkles width={14} height={14} /> AI 화자 분리 · 한국어 해석
-            </span>
-            <h1 className="mt-4 text-4xl font-black leading-[1.05] tracking-tight sm:text-[56px]">
+            <h1 className="text-4xl font-black leading-[1.05] tracking-tight sm:text-[56px]">
               Hear it.
               <br />
               Read it.

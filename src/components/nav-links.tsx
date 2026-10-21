@@ -23,12 +23,13 @@ export function NavLinks({ path }: { path: string | null }) {
           <Link
             key={href}
             href={href}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+            aria-label={label}
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
               on ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-2 hover:text-foreground"
             }`}
           >
             <Icon width={16} height={16} />
-            {label}
+            <span className="hidden sm:inline">{label}</span>
           </Link>
         );
       })}

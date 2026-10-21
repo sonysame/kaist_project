@@ -91,9 +91,9 @@ export const TranscriptRow = memo(function TranscriptRow({
         )}
       </div>
 
-      <div className="relative min-w-0 pr-24">
-        {/* 오른쪽 위: 해석 펼치기(KOR) + 이 문장만 듣기(▶) */}
-        <div className="absolute right-0 top-0 flex items-center gap-1.5">
+      <div className="relative flex min-w-0 flex-col sm:block sm:pr-24">
+        {/* 해석 펼치기(KOR) + 이 문장만 듣기(▶): 넓은 화면은 오른쪽 위, 휴대폰은 문장 아래 오른쪽 */}
+        <div className="order-last mt-1 flex items-center gap-1.5 self-end sm:absolute sm:right-0 sm:top-0 sm:mt-0">
           <button
             onClick={() => setKoOpen((o) => !o)}
             disabled={alwaysKo}
