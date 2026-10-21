@@ -91,9 +91,21 @@ export const TranscriptRow = memo(function TranscriptRow({
         )}
       </div>
 
-      <div className="relative min-w-0 pr-11">
-        {/* 오른쪽 위: 이 문장만 듣기 + 해석 펼치기 */}
-        <div className="absolute right-0 top-0 flex flex-col items-center gap-1.5">
+      <div className="relative min-w-0 pr-24">
+        {/* 오른쪽 위: 해석 펼치기(KOR) + 이 문장만 듣기(▶) */}
+        <div className="absolute right-0 top-0 flex items-center gap-1.5">
+          <button
+            onClick={() => setKoOpen((o) => !o)}
+            disabled={alwaysKo}
+            aria-pressed={showKo}
+            aria-label={showKo ? "해석 접기" : "해석 보기"}
+            title={alwaysKo ? "'해석 항상 보기'가 켜져 있어요" : showKo ? "해석 접기" : "해석 보기"}
+            className={`rounded-full px-2 py-1 text-[11px] font-bold tracking-wide transition disabled:cursor-default ${
+              showKo ? "bg-accent text-white" : "bg-surface text-muted ring-1 ring-line hover:text-accent"
+            }`}
+          >
+            KOR
+          </button>
           <button
             onClick={() => onPlayOnce(u)}
             className="grid h-8 w-8 place-items-center rounded-full bg-surface text-accent shadow-card ring-1 ring-line transition hover:bg-accent hover:text-white"
@@ -101,18 +113,6 @@ export const TranscriptRow = memo(function TranscriptRow({
             aria-label="이 문장만 듣기"
           >
             <Play width={13} height={13} className="translate-x-px" />
-          </button>
-          <button
-            onClick={() => setKoOpen((o) => !o)}
-            disabled={alwaysKo}
-            aria-pressed={showKo}
-            aria-label={showKo ? "해석 접기" : "해석 보기"}
-            title={alwaysKo ? "'해석 항상 보기'가 켜져 있어요" : showKo ? "해석 접기" : "해석 보기"}
-            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold tracking-wide transition disabled:cursor-default ${
-              showKo ? "bg-accent text-white" : "bg-surface text-muted ring-1 ring-line hover:text-accent"
-            }`}
-          >
-            KOR
           </button>
         </div>
         {showSpeaker && (
