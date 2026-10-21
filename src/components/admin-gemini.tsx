@@ -72,8 +72,7 @@ export function AdminGemini({ stats, onChanged }: { stats: GeminiStats; onChange
       <section>
         <h2 className="text-lg font-bold">Gemini 오늘 사용량</h2>
         <p className="mt-1 text-xs text-muted">
-          하루 한도는 미국 태평양 시간 자정(한국 시간 {resetKST})에 다시 채워져요. 앱이 직접 센 숫자라 AI Studio 등 앱 밖에서 쓴
-          요청은 들어 있지 않아요.
+          하루 한도는 미국 태평양 시간 자정(한국 시간 {resetKST})에 다시 채워져요.
         </p>
         {!stats.logReady && (
           <p className="mt-3 rounded-lg bg-warm-soft px-3 py-2 text-sm">
