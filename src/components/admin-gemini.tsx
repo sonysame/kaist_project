@@ -13,8 +13,6 @@ export type GeminiStats = {
 
 const ROLES: Role[] = ["transcribe", "text", "correct"];
 
-const kTokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n));
-
 /** 관리자 페이지의 Gemini 부분: 오늘 사용량, 모델 바꾸기 */
 export function AdminGemini({ stats, onChanged }: { stats: GeminiStats; onChanged: () => void }) {
   const [roles, setRoles] = useState<RoleInfo | null>(null);
@@ -68,14 +66,12 @@ export function AdminGemini({ stats, onChanged }: { stats: GeminiStats; onChange
           </p>
         )}
         <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface shadow-card">
-          <table className="w-full min-w-[620px] text-sm">
+          <table className="w-full min-w-[480px] text-sm">
             <thead className="border-b border-line text-left text-xs text-muted">
               <tr>
                 <th className="px-4 py-3 font-semibold">모델</th>
                 <th className="px-4 py-3 font-semibold">쓰는 곳</th>
-                <th className="w-56 px-4 py-3 font-semibold">오늘 요청 / 하루 한도</th>
-                <th className="px-4 py-3 text-right font-semibold">한도 초과</th>
-                <th className="px-4 py-3 text-right font-semibold">토큰 (입력·출력)</th>
+                <th className="w-64 px-4 py-3 font-semibold">오늘 요청 / 하루 한도</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -97,12 +93,6 @@ export function AdminGemini({ stats, onChanged }: { stats: GeminiStats; onChange
                           {u.calls}/{u.limit ?? "?"}
                         </span>
                       </div>
-                    </td>
-                    <td className={`px-4 py-3 text-right tabular-nums ${u.rateLimited ? "font-semibold text-danger" : "text-muted"}`}>
-                      {u.rateLimited}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-muted">
-                      {kTokens(u.inputTokens)} · {kTokens(u.outputTokens)}
                     </td>
                   </tr>
                 );
