@@ -58,7 +58,14 @@ export function RecentJobs() {
                   <FileAudio />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold group-hover:text-accent">{j.filename}</p>
+                  <p className="flex items-center gap-1.5">
+                    {j.is_sample && (
+                      <span className="shrink-0 rounded-full bg-warm-soft px-2 py-0.5 text-[11px] font-bold text-warm">샘플</span>
+                    )}
+                    <span className="truncate font-semibold group-hover:text-accent">
+                      {j.is_sample ? "Acquired 팟캐스트 · Tencent 편" : j.filename}
+                    </span>
+                  </p>
                   <p className="mt-0.5 text-xs text-muted">{new Date(j.created_at).toLocaleDateString("ko-KR")}</p>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import { Uploader } from "@/components/uploader";
 import { RecentJobs } from "@/components/recent-jobs";
+import { HomeGate } from "@/components/home-gate";
 import { HowItWorksComic } from "@/components/how-it-works-comic";
 import { Sparkles } from "@/components/icons";
 
@@ -28,7 +29,9 @@ export default function Home() {
               <span className="bg-gradient-to-r from-accent to-warm bg-clip-text text-transparent">Own it.</span>
             </h1>
           </div>
-          <Uploader />
+          <HomeGate>
+            <Uploader />
+          </HomeGate>
         </div>
       </section>
 
@@ -41,6 +44,7 @@ export default function Home() {
             <p className="mt-1 text-sm text-muted">올린 오디오를 다시 열어 이어서 공부할 수 있어요.</p>
           </div>
         </div>
+        {/* 샘플은 로그인하지 않아도 보이고, 로그인하면 내가 올린 자료가 함께 나온다 */}
         <RecentJobs />
       </section>
     </div>

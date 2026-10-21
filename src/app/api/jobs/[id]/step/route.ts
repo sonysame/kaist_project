@@ -2,6 +2,7 @@ import { BUCKET, supabaseAdmin } from "@/lib/supabase-server";
 import { chunkPath } from "@/lib/layout";
 import { RateLimitError, analyzeTranscript, findCorrections, transcribeChunk, translateUtterances } from "@/lib/gemini";
 import { mergeSpeakers } from "@/lib/speakers";
+import { requireJobOwner } from "@/lib/auth";
 import { applyTranscriptCorrections } from "@/lib/corrections-db";
 import { buildUtterances, chooseCut, keepRange, mapSpeakers } from "@/lib/pipeline";
 import type { Word } from "@/lib/types";
@@ -25,6 +26,8 @@ type ChunkRow = {
  */
 export async function POST(_request: Request, ctx: RouteContext<"/api/jobs/[id]/step">) {
   const { id } = await ctx.params;
+  const auth = await requireJobOwner(id);
+  if ("error" in auth) return auth.error;
   const db = supabaseAdmin();
 
   const { data: job } = await db.from("jobs").select("*").eq("id", id).maybeSingle();

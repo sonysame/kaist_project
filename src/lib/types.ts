@@ -43,10 +43,14 @@ export type Job = {
   error: string | null;
   speaker_names: Record<string, string>;
   created_at: string;
+  /** 누구나 볼 수 있는 샘플 학습 자료 */
+  is_sample?: boolean;
 };
 
 export type JobDetail = Job & {
   chunks: { idx: number; status: ChunkStatus; error: string | null }[];
   utterances: Utterance[];
   audio_url: string | null;
+  /** 주인이면 true. 샘플을 다른 사람이 볼 때는 false라서 삭제·화자 수정을 숨긴다 */
+  can_edit: boolean;
 };

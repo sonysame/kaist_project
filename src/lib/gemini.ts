@@ -2,10 +2,9 @@ import "server-only";
 import { GoogleGenAI, Type } from "@google/genai";
 import type { Definition, Word } from "./types";
 import { cleanCorrections, type Correction } from "./corrections";
+import { logGemini, type GeminiKind } from "./gemini-usage";
+import { getModel } from "./models";
 
-const TRANSCRIBE_MODEL = process.env.GEMINI_TRANSCRIBE_MODEL || "gemini-3.5-transcribe";
-// 3.8-flash는 무료 등급에서 40줄 번역에 2분 넘게 걸려 함수 제한 시간에 걸린다. flash-lite는 5초 안팎.
-const TRANSLATE_MODEL = process.env.GEMINI_TRANSLATE_MODEL || "gemini-3.5-flash-lite";
 
 function client() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -16,13 +15,37 @@ function client() {
 /** 무료 한도 초과(429)를 구분해서 화면에 알려 주기 위한 에러 */
 export class RateLimitError extends Error {}
 
-function rethrow(err: unknown): never {
+function isRateLimited(err: unknown) {
   const status = (err as { status?: number })?.status;
   const msg = err instanceof Error ? err.message : String(err);
-  if (status === 429 || /429|RESOURCE_EXHAUSTED|quota/i.test(msg)) {
+  return status === 429 || /429|RESOURCE_EXHAUSTED|quota/i.test(msg);
+}
+
+function rethrow(err: unknown): never {
+  if (isRateLimited(err)) {
     throw new RateLimitError("Gemini 무료 사용 한도에 도달했어요. 잠시 후 다시 시도해 주세요.");
   }
-  throw err instanceof Error ? err : new Error(msg);
+  throw err instanceof Error ? err : new Error(err instanceof Error ? err.message : String(err));
+}
+
+type Usage = { input?: number | null; output?: number | null };
+type GenerateResult = { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number } };
+const generateUsage = (r: GenerateResult): Usage => ({
+  input: r.usageMetadata?.promptTokenCount,
+  output: r.usageMetadata?.candidatesTokenCount,
+});
+
+/** Gemini 호출 한 번을 감싸서 성공·한도 초과·실패와 토큰 수를 기록한다 (관리자 페이지의 사용량 표시용) */
+async function tracked<T>(kind: GeminiKind, model: string, call: () => Promise<T>, usage: (r: T) => Usage): Promise<T> {
+  try {
+    const result = await call();
+    const u = usage(result);
+    await logGemini({ model, kind, status: "ok", inputTokens: u.input, outputTokens: u.output });
+    return result;
+  } catch (err) {
+    await logGemini({ model, kind, status: isRateLimited(err) ? "rate_limited" : "error" });
+    throw err;
+  }
 }
 
 const seconds = (offset: unknown) => (typeof offset === "string" ? parseFloat(offset) : Number(offset ?? 0));
@@ -30,19 +53,30 @@ const seconds = (offset: unknown) => (typeof offset === "string" ? parseFloat(of
 /** 오디오 구간 하나를 화자 분리 + 단어 타임스탬프와 함께 전사한다. offset은 원본 기준 구간 시작 시각. */
 export async function transcribeChunk(audio: Blob, offset: number): Promise<Word[]> {
   const ai = client();
+  // 관리자 페이지에서 바꾼 모델이 바로 적용된다 (models.ts)
+  const TRANSCRIBE_MODEL = await getModel("transcribe");
   try {
     const file = await ai.files.upload({ file: audio, config: { mimeType: "audio/mpeg" } });
     try {
-      const interaction = await ai.interactions.create({
-        model: TRANSCRIBE_MODEL,
-        input: [{ type: "audio", uri: file.uri!, mime_type: "audio/mpeg" }],
-        generation_config: {
-          transcription_config: {
-            language_codes: ["en-US"],
-            mode: { type: "verbatim", diarization_mode: "speaker", timestamp_granularities: ["word"] },
-          },
+      const interaction = await tracked(
+        "transcribe",
+        TRANSCRIBE_MODEL,
+        () =>
+          ai.interactions.create({
+            model: TRANSCRIBE_MODEL,
+            input: [{ type: "audio", uri: file.uri!, mime_type: "audio/mpeg" }],
+            generation_config: {
+              transcription_config: {
+                language_codes: ["en-US"],
+                mode: { type: "verbatim", diarization_mode: "speaker", timestamp_granularities: ["word"] },
+              },
+            },
+          } as never) as Promise<unknown>,
+        (r) => {
+          const u = (r as { usage?: { total_input_tokens?: number; total_output_tokens?: number } }).usage;
+          return { input: u?.total_input_tokens, output: u?.total_output_tokens };
         },
-      } as never);
+      );
       return extractWords(interaction, offset);
     } finally {
       if (file.name) await ai.files.delete({ name: file.name }).catch(() => {});
@@ -76,6 +110,8 @@ function extractWords(interaction: unknown, offset: number): Word[] {
 /** 문장 속 단어의 기본형과 문맥에 맞는 한국어 뜻을 알려 준다. */
 export async function defineWord(word: string, sentence: string): Promise<Definition> {
   const ai = client();
+  // 관리자 페이지에서 바꾼 모델이 바로 적용된다 (models.ts)
+  const TRANSLATE_MODEL = await getModel("text");
   const prompt = [
     "You help Korean learners of English. Explain the word as it is used in this sentence.",
     `Sentence: ${sentence}`,
@@ -85,22 +121,28 @@ export async function defineWord(word: string, sentence: string): Promise<Defini
     "meaning_ko (the Korean meaning that fits this sentence, short — one or two expressions, no example sentence).",
   ].join("\n");
   try {
-    const res = await ai.models.generateContent({
-      model: TRANSLATE_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            lemma: { type: Type.STRING },
-            part_of_speech: { type: Type.STRING },
-            meaning_ko: { type: Type.STRING },
+    const res = await tracked(
+      "define",
+      TRANSLATE_MODEL,
+      () =>
+        ai.models.generateContent({
+          model: TRANSLATE_MODEL,
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                lemma: { type: Type.STRING },
+                part_of_speech: { type: Type.STRING },
+                meaning_ko: { type: Type.STRING },
+              },
+              required: ["lemma", "part_of_speech", "meaning_ko"],
+            },
           },
-          required: ["lemma", "part_of_speech", "meaning_ko"],
-        },
-      },
-    });
+        }),
+      generateUsage,
+    );
     return JSON.parse(res.text ?? "{}") as Definition;
   } catch (err) {
     rethrow(err);
@@ -115,6 +157,8 @@ export type TranscriptAnalysis = { adIds: number[]; names: Record<string, string
  */
 export async function analyzeTranscript(lines: { id: number; speaker: string; text: string }[]): Promise<TranscriptAnalysis> {
   const ai = client();
+  // 관리자 페이지에서 바꾼 모델이 바로 적용된다 (models.ts)
+  const TRANSLATE_MODEL = await getModel("text");
   const speakers = [...new Set(lines.map((l) => l.speaker))];
   const prompt = [
     "Below is a speaker-labeled transcript (format: id|speaker|text). Do two things.",
@@ -130,7 +174,7 @@ export async function analyzeTranscript(lines: { id: number; speaker: string; te
   ].join("\n");
 
   try {
-    const res = await ai.models.generateContent({
+    const res = await tracked("analyze", TRANSLATE_MODEL, () => ai.models.generateContent({
       model: TRANSLATE_MODEL,
       contents: prompt,
       config: {
@@ -151,7 +195,7 @@ export async function analyzeTranscript(lines: { id: number; speaker: string; te
           required: ["ad_ids", "speakers"],
         },
       },
-    });
+    }), generateUsage);
     const parsed = JSON.parse(res.text ?? "{}") as { ad_ids?: number[]; speakers?: { label: string; name: string }[] };
     const valid = new Set(lines.map((l) => l.id));
     return {
@@ -167,15 +211,14 @@ export async function analyzeTranscript(lines: { id: number; speaker: string; te
   }
 }
 
-// flash-lite는 아는 정보가 오래돼서 광고 속 실제 제품명까지 엉뚱하게 바꿨다. 교정만은 더 정확한 모델로 따로 요청한다.
-const CORRECTION_MODEL = process.env.GEMINI_CORRECTION_MODEL || "gemini-3.5-flash";
-
 /**
  * 음성 인식이 고유명사를 비슷한 소리의 평범한 단어로 적은 곳을 찾는다 (예: "10 Cent" → "Tencent").
  * 이미 고유명사로 적힌 이름은 모델이 모르는 것이어도 바꾸지 않도록 엄격하게 지시한다.
  */
 export async function findCorrections(lines: { id: number; speaker: string; text: string }[]): Promise<Correction[]> {
   const ai = client();
+  // 관리자 페이지에서 바꾼 모델이 바로 적용된다 (models.ts)
+  const CORRECTION_MODEL = await getModel("correct");
   const prompt = [
     "Below is an automatic speech-recognition transcript (format: id|speaker|text).",
     "Find places where the recognizer wrote a proper noun (company, product, person, place) as ORDINARY words or numbers",
@@ -192,7 +235,7 @@ export async function findCorrections(lines: { id: number; speaker: string; text
   ].join("\n");
 
   try {
-    const res = await ai.models.generateContent({
+    const res = await tracked("correct", CORRECTION_MODEL, () => ai.models.generateContent({
       model: CORRECTION_MODEL,
       contents: prompt,
       config: {
@@ -212,7 +255,7 @@ export async function findCorrections(lines: { id: number; speaker: string; text
           required: ["corrections"],
         },
       },
-    });
+    }), generateUsage);
     const parsed = JSON.parse(res.text ?? "{}") as { corrections?: Correction[] };
     return cleanCorrections(parsed.corrections ?? []);
   } catch (err) {
@@ -229,6 +272,8 @@ export async function translateUtterances(
 ): Promise<Map<number, string>> {
   if (items.length === 0) return new Map();
   const ai = client();
+  // 관리자 페이지에서 바꾼 모델이 바로 적용된다 (models.ts)
+  const TRANSLATE_MODEL = await getModel("text");
   const prompt = [
     "You are a professional English→Korean interpreter translating a transcript of a recording.",
     "Translate each utterance into natural, fluent Korean that fits a spoken conversation.",
@@ -243,7 +288,7 @@ export async function translateUtterances(
   ].join("\n\n");
 
   try {
-    const res = await ai.models.generateContent({
+    const res = await tracked("translate", TRANSLATE_MODEL, () => ai.models.generateContent({
       model: TRANSLATE_MODEL,
       contents: prompt,
       config: {
@@ -257,7 +302,7 @@ export async function translateUtterances(
           },
         },
       },
-    });
+    }), generateUsage);
     const parsed = JSON.parse(res.text ?? "[]") as { id: number; ko: string }[];
     return new Map(parsed.map((p) => [p.id, p.ko]));
   } catch (err) {

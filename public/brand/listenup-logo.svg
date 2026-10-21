@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="116" fill="#fff1e3"/>
+  <g fill="#7b6cf6">
+    <circle cx="256" cy="292" r="150"/>
+    <circle cx="118" cy="250" r="22"/><circle cx="132" cy="196" r="22"/><circle cx="166" cy="156" r="22"/><circle cx="210" cy="134" r="22"/>
+    <circle cx="256" cy="128" r="22"/><circle cx="302" cy="134" r="22"/><circle cx="346" cy="156" r="22"/><circle cx="380" cy="196" r="22"/>
+    <circle cx="394" cy="250" r="22"/><circle cx="400" cy="306" r="22"/><circle cx="112" cy="306" r="22"/><circle cx="388" cy="362" r="22"/><circle cx="124" cy="362" r="22"/>
+  </g>
+  <!-- 헤드폰 -->
+  <path d="M120 290 A136 136 0 0 1 392 290" fill="none" stroke="#1d1f2c" stroke-width="22" stroke-linecap="round"/>
+  <rect x="88" y="268" width="56" height="96" rx="24" fill="#ff8a4c" stroke="#1d1f2c" stroke-width="12"/>
+  <rect x="368" y="268" width="56" height="96" rx="24" fill="#ff8a4c" stroke="#1d1f2c" stroke-width="12"/>
+  <!-- 눈 -->
+  <circle cx="214" cy="262" r="38" fill="#fff"/><circle cx="298" cy="262" r="38" fill="#fff"/>
+  <circle cx="222" cy="268" r="18" fill="#1d1f2c"/><circle cx="306" cy="268" r="18" fill="#1d1f2c"/>
+  <circle cx="229" cy="260" r="6" fill="#fff"/><circle cx="313" cy="260" r="6" fill="#fff"/>
+  <!-- 입 -->
+  <path d="M212 334 Q256 384 300 334 Z" fill="#3b0f2a"/>
+  <path d="M232 352 Q256 372 280 352 Q256 360 232 352 Z" fill="#ff6b8a"/>
+</svg>

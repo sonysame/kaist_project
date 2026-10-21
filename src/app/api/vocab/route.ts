@@ -1,47 +1,66 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
+import { currentUser, unauthorized } from "@/lib/auth";
+import { isSampleJob } from "@/lib/sample";
 
-// 로그인 대신 브라우저가 만든 익명 ID로 단어장을 구분한다.
-function deviceId(request: Request) {
-  const id = request.headers.get("x-device-id");
-  return id && /^[0-9a-f-]{36}$/i.test(id) ? id : null;
+const COLUMNS = "id, word, lemma, part_of_speech, meaning_ko, sentence_en, sentence_ko, job_id, start_sec, created_at";
+
+/** 로그인 전에 이 브라우저 ID로 저장해 둔 단어를 계정으로 옮긴다. 계정에 이미 있는 단어는 버린다. */
+async function claimDeviceWords(userId: string, request: Request) {
+  const device = request.headers.get("x-device-id");
+  if (!device || !/^[0-9a-f-]{36}$/i.test(device)) return;
+  const db = supabaseAdmin();
+  const { data: orphans } = await db.from("vocab").select("id, lemma").eq("device_id", device).is("user_id", null);
+  if (!orphans?.length) return;
+  const { data: mine } = await db.from("vocab").select("lemma").eq("user_id", userId);
+  const have = new Set((mine ?? []).map((v) => v.lemma));
+  const dupes = orphans.filter((o) => have.has(o.lemma)).map((o) => o.id);
+  const move = orphans.filter((o) => !have.has(o.lemma)).map((o) => o.id);
+  if (dupes.length) await db.from("vocab").delete().in("id", dupes);
+  if (move.length) await db.from("vocab").update({ user_id: userId }).in("id", move);
 }
 
-const noDevice = () => Response.json({ error: "기기 ID가 없어요." }, { status: 400 });
-
 export async function GET(request: Request) {
-  const device = deviceId(request);
-  if (!device) return noDevice();
+  const user = await currentUser();
+  if (!user) return unauthorized();
+  await claimDeviceWords(user.id, request);
   const { data, error } = await supabaseAdmin()
     .from("vocab")
-    .select("id, word, lemma, part_of_speech, meaning_ko, sentence_en, sentence_ko, job_id, start_sec, created_at")
-    .eq("device_id", device)
+    .select(COLUMNS)
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json(data);
 }
 
 export async function POST(request: Request) {
-  const device = deviceId(request);
-  if (!device) return noDevice();
+  const user = await currentUser();
+  if (!user) return unauthorized();
   const b = await request.json();
   if (!b.word || !b.lemma || !b.meaning_ko || !b.sentence_en) {
     return Response.json({ error: "단어 정보가 부족해요." }, { status: 400 });
   }
-  const { data, error } = await supabaseAdmin()
+  const db = supabaseAdmin();
+  // "들으러 가기" 링크는 내 작업이나 샘플일 때만 붙인다
+  let jobId: string | null = null;
+  if (typeof b.job_id === "string") {
+    const { data: job } = await db.from("jobs").select("user_id").eq("id", b.job_id).maybeSingle();
+    if (job && (job.user_id === user.id || isSampleJob(b.job_id))) jobId = b.job_id;
+  }
+  const { data, error } = await db
     .from("vocab")
     .upsert(
       {
-        device_id: device,
+        user_id: user.id,
         word: String(b.word).slice(0, 60),
         lemma: String(b.lemma).slice(0, 60),
         part_of_speech: b.part_of_speech ? String(b.part_of_speech).slice(0, 20) : null,
         meaning_ko: String(b.meaning_ko).slice(0, 200),
         sentence_en: String(b.sentence_en).slice(0, 2000),
         sentence_ko: b.sentence_ko ? String(b.sentence_ko).slice(0, 2000) : null,
-        job_id: b.job_id ?? null,
-        start_sec: typeof b.start_sec === "number" ? b.start_sec : null,
+        job_id: jobId,
+        start_sec: jobId && typeof b.start_sec === "number" ? b.start_sec : null,
       },
-      { onConflict: "device_id,lemma" },
+      { onConflict: "user_id,lemma" },
     )
     .select("id")
     .single();
@@ -50,10 +69,10 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const device = deviceId(request);
-  if (!device) return noDevice();
+  const user = await currentUser();
+  if (!user) return unauthorized();
   const id = Number(new URL(request.url).searchParams.get("id"));
-  const { error } = await supabaseAdmin().from("vocab").delete().eq("device_id", device).eq("id", id);
+  const { error } = await supabaseAdmin().from("vocab").delete().eq("user_id", user.id).eq("id", id);
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ ok: true });
 }

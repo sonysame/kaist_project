@@ -11,22 +11,6 @@ import { BookOpen, ChevronLeft, ChevronRight, Download, Shuffle, Trash, Volume }
 
 type Mode = "list" | "cards" | "quiz";
 
-const STARTER_KEY = "starter-vocab-added";
-function starterDone() {
-  try {
-    return localStorage.getItem(STARTER_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-function markStarterDone() {
-  try {
-    localStorage.setItem(STARTER_KEY, "1");
-  } catch {
-    // 저장소를 못 쓰는 브라우저면 서버 쪽 "비어 있을 때만" 조건으로 충분하다
-  }
-}
-
 export function VocabList() {
   const [items, setItems] = useState<VocabEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,10 +26,9 @@ export function VocabList() {
     };
     (async () => {
       let list = await fetchList();
-      // 처음 온 브라우저면 기본 단어를 한 번만 넣어 준다 (다 지운 뒤에 다시 넣지 않도록 표시를 남김)
-      if (!list.length && !starterDone()) {
+      // 단어장이 비어 있으면 기본 단어를 요청한다. 계정마다 한 번만 넣는지는 서버가 판단한다.
+      if (!list.length) {
         const r = await vocabFetch("/api/vocab/starter", { method: "POST" });
-        markStarterDone();
         if (r.ok && (await r.json()).inserted) list = await fetchList();
       }
       setItems(list);

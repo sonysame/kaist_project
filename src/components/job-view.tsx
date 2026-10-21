@@ -109,7 +109,8 @@ export function JobView({ id }: { id: string }) {
     }
   }, [id, load]);
 
-  const shouldAutoRun = job?.status === "processing";
+  // 처리 진행은 주인만 한다 (샘플을 보러 온 사람이 처리를 돌리지 않도록)
+  const shouldAutoRun = job?.status === "processing" && job.can_edit;
   useEffect(() => {
     // 서버 처리 루프를 시작하는 외부 동기화라서 effect에서 부른다
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -336,19 +337,26 @@ export function JobView({ id }: { id: string }) {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-black tracking-tight sm:text-3xl">{job.filename.replace(/\.[^.]+$/, "")}</h1>
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
+            {job.is_sample && (
+              <span className="inline-flex items-center rounded-full bg-warm-soft px-3 py-1 font-semibold text-warm">
+                샘플 학습 자료
+              </span>
+            )}
             <Meta icon={<Clock width={15} height={15} />}>{clock(job.duration_sec)}</Meta>
             <Meta icon={<Users width={15} height={15} />}>화자 {speakers.length}명</Meta>
             <Meta icon={<Text width={15} height={15} />}>문장 {contentCount}개</Meta>
           </div>
         </div>
-        <button
-          onClick={remove}
-          className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-muted hover:border-danger hover:text-danger"
-          title="삭제"
-          aria-label="삭제"
-        >
-          <Trash width={18} height={18} />
-        </button>
+        {job.can_edit && (
+          <button
+            onClick={remove}
+            className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-muted hover:border-danger hover:text-danger"
+            title="삭제"
+            aria-label="삭제"
+          >
+            <Trash width={18} height={18} />
+          </button>
+        )}
       </div>
 
       {job.status !== "done" && (
@@ -384,12 +392,15 @@ export function JobView({ id }: { id: string }) {
                     name={names(s)}
                     count={utterances.filter((u) => !u.is_ad && u.speaker === s).length}
                     others={speakers.filter((o) => o !== s).map((o) => ({ id: o, name: names(o) }))}
+                    editable={job.can_edit}
                     onRename={(n) => rename(s, n)}
                     onMerge={(into) => merge(s, into)}
                   />
                 ))}
               </ul>
-              <p className="mt-3 text-xs text-muted">이름을 누르면 바꿀 수 있어요. 같은 사람이 둘로 나뉘었으면 ⋯로 합치세요.</p>
+              {job.can_edit && (
+                <p className="mt-3 text-xs text-muted">이름을 누르면 바꿀 수 있어요. 같은 사람이 둘로 나뉘었으면 ⋯로 합치세요.</p>
+              )}
             </Card>
           )}
 
@@ -680,6 +691,7 @@ function SpeakerItem({
   name,
   count,
   others,
+  editable,
   onRename,
   onMerge,
 }: {
@@ -687,6 +699,8 @@ function SpeakerItem({
   name: string;
   count: number;
   others: { id: string; name: string }[];
+  /** 주인만 이름 바꾸기·합치기를 할 수 있다 */
+  editable: boolean;
   onRename: (n: string) => void;
   onMerge: (into: string) => void;
 }) {
@@ -715,6 +729,8 @@ function SpeakerItem({
               className="w-full rounded-md border border-accent bg-surface px-2 py-0.5 text-sm outline-none"
             />
           </form>
+        ) : !editable ? (
+          <span className="block truncate text-sm font-semibold">{name}</span>
         ) : (
           <button
             onClick={() => {
@@ -729,7 +745,7 @@ function SpeakerItem({
         )}
         <span className="text-xs tabular-nums text-muted">{count}문장</span>
       </div>
-      {others.length > 0 && (
+      {editable && others.length > 0 && (
         <select
           value=""
           onChange={(e) => e.target.value && onMerge(e.target.value)}

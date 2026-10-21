@@ -6,6 +6,8 @@ import { vocabFetch } from "@/lib/device";
 import type { Definition, Utterance } from "@/lib/types";
 import { speak } from "@/lib/speak";
 import { Bookmark, Check, Volume } from "./icons";
+import { useAuth } from "./auth-provider";
+import { GoogleMark } from "./google-mark";
 
 export type WordTarget = { u: Utterance; wordIdx: number; rect: DOMRect };
 
@@ -21,10 +23,12 @@ export function WordPopover({ target, jobId, onClose }: { target: WordTarget; jo
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<"no" | "saving" | "yes">("no");
   const box = useRef<HTMLDivElement>(null);
+  const { user, signIn } = useAuth();
+  const guest = user === null; // 로그인하지 않은 사람은 뜻 찾기(Gemini)를 쓰지 않는다
 
   // 다른 단어를 누르면 부모가 key를 바꿔 이 컴포넌트를 새로 만든다
   useEffect(() => {
-    if (cache.has(key) || !word) return;
+    if (guest || user === undefined || cache.has(key) || !word) return;
     let cancelled = false;
     fetch("/api/define", {
       method: "POST",
@@ -41,7 +45,7 @@ export function WordPopover({ target, jobId, onClose }: { target: WordTarget; jo
     return () => {
       cancelled = true;
     };
-  }, [key, word, u.text_en]);
+  }, [key, word, u.text_en, guest, user]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -112,7 +116,9 @@ export function WordPopover({ target, jobId, onClose }: { target: WordTarget; jo
           )}
         </div>
         <p className="mt-2 min-h-7 text-[17px] font-semibold">
-          {error ? (
+          {guest ? (
+            <span className="text-sm font-normal text-muted">로그인하면 뜻을 보고 단어장에 저장할 수 있어요.</span>
+          ) : error ? (
             <span className="text-sm font-normal text-danger">{error}</span>
           ) : def ? (
             def.meaning_ko
@@ -123,6 +129,15 @@ export function WordPopover({ target, jobId, onClose }: { target: WordTarget; jo
       </div>
       <div className="px-5 pb-4 pt-3">
         <p className="line-clamp-3 text-sm leading-relaxed text-muted">{highlight(u.text_en, u.words[wordIdx]?.t ?? word)}</p>
+        {guest ? (
+          <button
+            onClick={() => signIn()}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm font-semibold hover:border-accent"
+          >
+            <GoogleMark className="h-4 w-4" />
+            Google로 로그인
+          </button>
+        ) : (
         <div className="mt-4 flex items-center gap-3">
           <button
             onClick={save}
@@ -140,6 +155,7 @@ export function WordPopover({ target, jobId, onClose }: { target: WordTarget; jo
             </Link>
           )}
         </div>
+        )}
       </div>
     </div>
   );

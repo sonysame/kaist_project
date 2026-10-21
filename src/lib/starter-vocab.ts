@@ -11,8 +11,8 @@ export type StarterWord = {
   start_sec: number; // 원래 대본에서 이 단어가 나오는 시각
 };
 
-/** 예문이 나온 작업. 이 작업이 DB에 있으면 "들으러 가기" 링크를 붙이고, 없으면 링크 없이 넣는다. */
-export const STARTER_JOB_ID = "aed3093c-9ae1-4251-bbaf-4ebeaa5982d1";
+/** 예문이 나온 작업(샘플 학습 자료). 이 작업이 DB에 있으면 "들으러 가기" 링크를 붙이고, 없으면 링크 없이 넣는다. */
+export { SAMPLE_JOB_ID as STARTER_JOB_ID } from "./sample";
 
 export const STARTER_WORDS: StarterWord[] = [
   {

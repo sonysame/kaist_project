@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { ChunkRange } from "@/lib/layout";
 import { Check, FileAudio, UploadCloud } from "./icons";
+import { useAuth } from "./auth-provider";
 
 type Stage =
   | { kind: "idle" }
@@ -26,9 +27,16 @@ export function Uploader() {
   const [stage, setStage] = useState<Stage>({ kind: "idle" });
   const [dragging, setDragging] = useState(false);
   const busy = stage.kind === "loading" || stage.kind === "compressing" || stage.kind === "uploading";
+  const { quota, refreshQuota } = useAuth();
+  const limitReached = quota ? quota.used >= quota.limit : false;
 
   async function start(file: File) {
     if (busy) return;
+    // 압축에 1분쯤 걸리니, 오늘 한도를 다 썼으면 시작하기 전에 막는다 (서버도 한 번 더 확인)
+    if (limitReached) {
+      setStage({ kind: "error", message: `오늘은 ${quota!.limit}개까지 올릴 수 있어요. 내일 다시 올려 주세요.` });
+      return;
+    }
     try {
       setStage({ kind: "loading" });
       const { compressAudio, splitAudio } = await import("@/lib/audio-client");
@@ -41,6 +49,7 @@ export function Uploader() {
       });
       const job = (await res.json()) as CreateResponse & { error?: string };
       if (!res.ok) throw new Error(job.error ?? "작업을 만들지 못했어요.");
+      refreshQuota(); // 헤더의 "오늘 업로드 n/3" 갱신
 
       const parts = await splitAudio(job.layout);
       const uploads = [
@@ -108,11 +117,19 @@ export function Uploader() {
           <button
             type="button"
             onClick={() => input.current?.click()}
-            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-card transition hover:bg-accent-strong"
+            disabled={limitReached}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-card transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
           >
             <FileAudio width={18} height={18} />
             파일 선택
           </button>
+          {quota && (
+            <p className={`mt-3 text-xs ${limitReached ? "font-semibold text-danger" : "text-muted"}`}>
+              {limitReached
+                ? `오늘 업로드 ${quota.used}/${quota.limit} · 내일(한국 시간 0시) 다시 올릴 수 있어요`
+                : `오늘 업로드 ${quota.used}/${quota.limit}`}
+            </p>
+          )}
           {stage.kind === "error" && (
             <p className="mt-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{stage.message}</p>
           )}

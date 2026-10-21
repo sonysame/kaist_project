@@ -4,6 +4,8 @@ import { Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
 import { Headphones } from "@/components/icons";
 import { Suspense } from "react";
 import { CurrentNavLinks, NavLinks } from "@/components/nav-links";
+import { AuthProvider } from "@/components/auth-provider";
+import { AccountMenu } from "@/components/account-menu";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -19,6 +21,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} ${notoKr.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
+        <AuthProvider>
         <header className="sticky top-0 z-40 border-b border-line bg-surface/90 backdrop-blur">
           <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
             <Link href="/" className="flex items-center gap-2.5">
@@ -34,12 +37,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Suspense fallback={<NavLinks path={null} />}>
               <CurrentNavLinks />
             </Suspense>
+            <AccountMenu />
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
         <footer className="border-t border-line py-6 text-center text-xs text-muted">
           화자 분리·번역은 Google Gemini 무료 모델로 처리돼요
         </footer>
+        </AuthProvider>
       </body>
     </html>
   );

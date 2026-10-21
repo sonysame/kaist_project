@@ -1,8 +1,13 @@
 import { BUCKET, supabaseAdmin } from "@/lib/supabase-server";
 import { mergeSpeakers } from "@/lib/speakers";
+import { requireJobOwner, requireJobReader } from "@/lib/auth";
+import { isSampleJob } from "@/lib/sample";
 
 export async function GET(_request: Request, ctx: RouteContext<"/api/jobs/[id]">) {
   const { id } = await ctx.params;
+  // 보기는 주인 또는 샘플이면 된다 (샘플은 로그인하지 않아도)
+  const auth = await requireJobReader(id);
+  if ("error" in auth) return auth.error;
   const db = supabaseAdmin();
   const [job, chunks, utterances] = await Promise.all([
     db.from("jobs").select("*").eq("id", id).maybeSingle(),
@@ -23,12 +28,24 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/jobs/[id]">
     const { data } = await db.storage.from(BUCKET).createSignedUrl(`${id}/full.mp3`, 60 * 60 * 6);
     audio_url = data?.signedUrl ?? null;
   }
-  return Response.json({ ...job.data, chunks: chunks.data, utterances: utterances.data, audio_url });
+  // 주인의 사용자 ID는 화면에 보내지 않는다
+  const publicJob = { ...job.data };
+  delete publicJob.user_id;
+  return Response.json({
+    ...publicJob,
+    chunks: chunks.data,
+    utterances: utterances.data,
+    audio_url,
+    is_sample: isSampleJob(id),
+    can_edit: auth.canEdit,
+  });
 }
 
 /** 업로드 완료 표시, 화자 이름 변경, 화자 합치기 */
 export async function PATCH(request: Request, ctx: RouteContext<"/api/jobs/[id]">) {
   const { id } = await ctx.params;
+  const auth = await requireJobOwner(id);
+  if ("error" in auth) return auth.error;
   const body = (await request.json()) as {
     uploaded?: boolean;
     speakerNames?: Record<string, string>;
@@ -63,6 +80,8 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/jobs/[id]"
 
 export async function DELETE(_request: Request, ctx: RouteContext<"/api/jobs/[id]">) {
   const { id } = await ctx.params;
+  const auth = await requireJobOwner(id);
+  if ("error" in auth) return auth.error;
   const db = supabaseAdmin();
   const storage = db.storage.from(BUCKET);
   const { data: files } = await storage.list(id);
