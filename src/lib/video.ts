@@ -95,11 +95,14 @@ export function drawFrame(ctx: CanvasRenderingContext2D, aspect: Aspect, f: Fram
     const enLines = allLines.slice(page * MAX_EN_LINES, page * MAX_EN_LINES + MAX_EN_LINES);
     const enLineH = enSize * 1.38;
     ctx.font = `500 ${koSize}px ${f.font}`;
-    let koLines = f.showKo && u.text_ko ? wrapText(ctx, u.text_ko, maxW) : [];
-    if (koLines.length > MAX_KO_LINES) {
-      koLines = koLines.slice(0, MAX_KO_LINES);
-      koLines[MAX_KO_LINES - 1] = ellipsize(ctx, koLines[MAX_KO_LINES - 1] + "…", maxW);
-    }
+    // 긴 해석도 자르지 않고 장을 나눠 영어와 함께 넘긴다. 장 수가 같으면 영어 장을 그대로 따르고,
+    // 다르면 지금까지 말한 단어 비율만큼 넘긴다 (해석의 순서는 대체로 영어 순서를 따라가니까)
+    const koAll = f.showKo && u.text_ko ? wrapText(ctx, u.text_ko, maxW) : [];
+    const enPages = Math.ceil(allLines.length / MAX_EN_LINES);
+    const koPages = Math.ceil(koAll.length / MAX_KO_LINES);
+    const spoken = words.length > 1 ? Math.max(0, active) / (words.length - 1) : 0;
+    const koPage = koPages <= 1 ? 0 : koPages === enPages ? page : Math.min(koPages - 1, Math.floor(spoken * koPages));
+    const koLines = koAll.slice(koPage * MAX_KO_LINES, koPage * MAX_KO_LINES + MAX_KO_LINES);
     const koLineH = koSize * 1.5;
 
     const blockH = 60 + enLines.length * enLineH + (koLines.length ? 24 + koLines.length * koLineH : 0);
