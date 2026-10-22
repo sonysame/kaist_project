@@ -158,14 +158,18 @@ export async function defineWord(word: string, sentence: string): Promise<Defini
 
 export type TranscriptAnalysis = { adIds: number[]; names: Record<string, string> };
 
-/** 대본 전체(광고 제외)를 읽고 무슨 내용인지 한국어 3~5줄로 요약한다. 학습 자료 화면 맨 위에 보여 준다. */
-export async function summarizeTranscript(lines: { speaker: string; text: string }[]): Promise<string[]> {
+/** 대본 전체(광고 제외)를 읽고 무슨 내용인지 한 문장으로 요약한다. 학습 자료 화면 맨 위에서 캐릭터가 반말로 말해 준다. */
+export async function summarizeTranscript(lines: { speaker: string; text: string }[]): Promise<string> {
   const ai = client();
   const TRANSLATE_MODEL = await getModel("text");
   const prompt = [
-    "Below is a transcript of English audio (format: speaker: text). Summarize what it is about for a Korean learner",
-    "who is deciding what to study. Write 3 to 5 short Korean sentences, one per item: the topic first, then the main",
-    "points in order. Use people's and companies' names as they appear. Do not mention ads or sponsors.",
+    "Below is a transcript of English audio (format: speaker: text). You are the app's cute mascot character telling",
+    "a Korean learner what this is about, in a speech bubble. Write exactly ONE short sentence in friendly casual Korean",
+    "(반말, like talking to a friend) that starts with '이 영상은' and ends with '이야기야.'",
+    "(e.g. '이 영상은 텐센트가 어떻게 중국 최대의 IT 기업이 됐는지에 대한 이야기야.'). Keep it under 60 Korean characters.",
+    "Use people's and companies' names as they appear, spelled correctly. Do not mention ads or sponsors.",
+    "The speakers are often hosts talking about other people or companies — say what they talk about, and never",
+    "describe the hosts as the people they are discussing. Reply with the plain sentence only, no tags or quotes.",
     "",
     lines.map((l) => `${l.speaker}: ${l.text}`).join("\n"),
   ].join("\n");
@@ -173,16 +177,9 @@ export async function summarizeTranscript(lines: { speaker: string; text: string
     const res = await tracked("summarize", TRANSLATE_MODEL, () => ai.models.generateContent({
       model: TRANSLATE_MODEL,
       contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
-      },
     }), generateUsage);
-    const parsed = JSON.parse(res.text ?? "[]") as unknown;
-    return (Array.isArray(parsed) ? parsed : [])
-      .filter((s): s is string => typeof s === "string" && !!s.trim())
-      .map((s) => s.trim().slice(0, 300))
-      .slice(0, 5);
+    // 가끔 태그나 따옴표를 붙여 답해서 벗겨 낸다
+    return (res.text ?? "").replace(/<[^>]*>/g, "").trim().replace(/^["'“]|["'”]$/g, "").slice(0, 200);
   } catch (err) {
     rethrow(err);
   }

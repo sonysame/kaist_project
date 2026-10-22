@@ -32,7 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col font-sans">
         <AuthProvider>
         <header className="sticky top-0 z-40 border-b border-line bg-surface/90 backdrop-blur">
-          <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4">
+          <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4 sm:gap-3">
             <Link href="/" className="flex shrink-0 items-center gap-2.5">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-accent to-warm text-white shadow-card">
                 <Headphones width={18} height={18} />

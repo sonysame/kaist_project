@@ -9,6 +9,7 @@ import { AD_LABEL, Avatar, TranscriptRow } from "./transcript-row";
 import { WordPopover, type WordTarget } from "./word-popover";
 import { Player } from "./player";
 import { Theater } from "./theater";
+import { Puppet } from "./puppet";
 import { ArrowLeft, Clock, Download, Film, Megaphone, Text, Trash, Users } from "./icons";
 
 type RunState =
@@ -421,17 +422,20 @@ export function JobView({ id }: { id: string }) {
         )}
       </div>
 
-      {!!job.summary?.length && (
-        <section className="mt-5 rounded-2xl border border-line bg-surface p-5 shadow-card">
-          <h2 className="text-sm font-bold text-accent">이런 내용이에요</h2>
-          <ul className="mt-2 space-y-1.5 text-[15px] leading-relaxed">
-            {job.summary.map((line, i) => (
-              <li key={i} className="flex gap-2">
-                <span className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
+      {/* 요약: 첫 화면 만화의 캐릭터가 말풍선으로 무슨 내용인지 알려 준다 */}
+      {typeof job.summary === "string" && job.summary && (
+        <section
+          aria-label="요약"
+          className="mt-5 flex items-end gap-3 rounded-2xl border-2 border-foreground/80 bg-gradient-to-b from-accent-soft to-surface p-4 shadow-[4px_4px_0_0_var(--foreground)] sm:gap-4 sm:p-5"
+        >
+          <Puppet kind="violet" className="puppet-bob h-20 w-auto shrink-0 sm:h-28" />
+          <div className="relative mb-2 min-w-0 flex-1 rounded-2xl border-2 border-foreground/80 bg-surface px-4 py-3 text-[15px] leading-relaxed">
+            {job.summary}
+            <span
+              aria-hidden
+              className="absolute -left-[9px] bottom-5 h-4 w-4 rotate-45 border-b-2 border-l-2 border-foreground/80 bg-surface"
+            />
+          </div>
         </section>
       )}
 

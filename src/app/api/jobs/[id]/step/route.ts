@@ -126,14 +126,14 @@ async function analyze(jobId: string, userNames: Record<string, string>) {
   }
   await db.from("jobs").update({ speaker_names: merged }).eq("id", jobId);
 
-  // 학습 자료 화면 맨 위에 보여 줄 3~5줄 요약. 실패해도 대본은 그대로 두고 넘어간다.
+  // 학습 자료 화면 맨 위에서 캐릭터가 말해 줄 한 줄 요약. 실패해도 대본은 그대로 두고 넘어간다.
   try {
     const ads = new Set(adIds);
     const { data: fixed } = await db.from("utterances").select("id, speaker, text_en").eq("job_id", jobId).order("start_sec");
     const content = (fixed ?? []).filter((l) => !ads.has(l.id));
     const label = (spk: string) => merged[spk] ?? `화자 ${spk.slice(1)}`;
     const summary = await summarizeTranscript(content.map((l) => ({ speaker: label(l.speaker), text: l.text_en })));
-    if (summary.length) await db.from("jobs").update({ summary }).eq("id", jobId);
+    if (summary) await db.from("jobs").update({ summary }).eq("id", jobId);
   } catch (err) {
     console.error("요약을 건너뜀:", err);
   }
