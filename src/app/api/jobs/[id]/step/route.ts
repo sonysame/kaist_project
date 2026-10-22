@@ -37,6 +37,33 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/jobs/[id]/
   if (job.status === "uploading") return Response.json({ error: "아직 업로드 중이에요." }, { status: 409 });
   if (job.status === "done") return Response.json({ done: true });
 
+  // 다른 화면(주인·관리자, 1부·2부 화면)이 이 자료를 처리하는 중이면 기다리게 한다. 같은 구간을 두 번 처리하지 않도록.
+  const lock = await takeLock(id);
+  if (lock === "busy") return Response.json({ done: false, busy: true });
+  try {
+    return await runStep(id, job);
+  } finally {
+    if (lock === "taken") await db.from("jobs").update({ step_lock_until: null }).eq("id", id);
+  }
+}
+
+const LOCK_MS = 5 * 60_000; // 서버가 강제로 끊겨 잠금을 못 풀어도 5분 뒤엔 풀린다
+
+/** 잠금을 잡는다. "none"은 잠금 칸이 아직 없는 경우(008 SQL 실행 전)라서 잠금 없이 진행한다. */
+async function takeLock(jobId: string): Promise<"taken" | "busy" | "none"> {
+  const now = new Date();
+  const { data, error } = await supabaseAdmin()
+    .from("jobs")
+    .update({ step_lock_until: new Date(now.getTime() + LOCK_MS).toISOString() })
+    .eq("id", jobId)
+    .or(`step_lock_until.is.null,step_lock_until.lt.${now.toISOString()}`)
+    .select("id");
+  if (error) return "none";
+  return data?.length ? "taken" : "busy";
+}
+
+async function runStep(id: string, job: { status: string; analyzed: boolean; speaker_names: Record<string, string> | null; next_speaker_no: number }) {
+  const db = supabaseAdmin();
   const { data: chunks } = await db
     .from("chunks")
     .select("idx, start_sec, end_sec, status, keep_until")
@@ -77,6 +104,9 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/jobs/[id]/
         { status: 429 },
       );
     }
+    // 그사이 다른 요청이 처리를 끝냈으면 늦게 온 오류로 끝난 자료를 '오류'로 덮어쓰지 않는다
+    const { data: latest } = await db.from("jobs").select("status").eq("id", id).maybeSingle();
+    if (latest?.status === "done") return Response.json({ done: true });
     await logError({ jobId: id, step: !chunk ? "분석" : chunk.status === "pending" ? "받아 적기" : "해석", error: err });
     await db.from("jobs").update({ status: "error", error: message }).eq("id", id);
     if (chunk) await db.from("chunks").update({ error: message }).eq("job_id", id).eq("idx", chunk.idx);

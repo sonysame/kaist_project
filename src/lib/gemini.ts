@@ -12,7 +12,8 @@ const GEMINI_TIMEOUT_MS = 240_000;
 function isTimeout(err: unknown) {
   const name = (err as { name?: string })?.name ?? "";
   const msg = err instanceof Error ? err.message : String(err);
-  return /abort|timeout/i.test(name) || /aborted|timed? ?out|timeout/i.test(msg);
+  // Gemini 쪽에서 시간이 다 돼 끊은 것(504 DEADLINE_EXCEEDED)도 같이 본다
+  return /abort|timeout/i.test(name) || /aborted|timed? ?out|timeout|DEADLINE_EXCEEDED|Deadline expired/i.test(msg);
 }
 
 function client() {

@@ -115,6 +115,9 @@ alter table public.jobs add column if not exists next_part_id uuid references pu
 -- 학습 자료 화면 맨 위에서 캐릭터가 말해 주는 한 줄 요약 (migrations/006_parts.sql과 같음)
 alter table public.jobs add column if not exists summary jsonb;
 
+-- 같은 자료를 두 화면이 동시에 처리하지 않게 잠그는 시각 (migrations/008_step_lock.sql과 같음)
+alter table public.jobs add column if not exists step_lock_until timestamptz;
+
 -- 처리 중 오류와 건너뛴 단계 기록 (관리자 페이지, migrations/007_error_log.sql과 같음)
 create table if not exists public.error_log (
   id bigint generated always as identity primary key,

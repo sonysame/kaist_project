@@ -24,6 +24,7 @@ type Range = { start: number; end: number };
 const RATE_LIMIT_WAIT_MS = 60_000;
 const HICCUP_WAIT_MS = 30_000;
 const MAX_HICCUPS = 3;
+const BUSY_POLL_MS = 8_000;
 
 export function JobView({ id }: { id: string }) {
   const router = useRouter();
@@ -103,6 +104,8 @@ export function JobView({ id }: { id: string }) {
       if (res?.ok) {
         hiccups = 0;
         if (body.done) break;
+        // 다른 화면이 같은 자료를 처리하는 중이면 잠깐 기다렸다가 진행 상황만 다시 읽는다
+        if (body.busy) await new Promise((r) => setTimeout(r, BUSY_POLL_MS));
         continue;
       }
       // 연결이 끊기거나 서버가 시간 초과로 끊긴 건(서버는 오류도 못 남김) 잠깐 쉬었다가 다시 해 본다
@@ -156,6 +159,7 @@ export function JobView({ id }: { id: string }) {
           hiccups = 0;
           setNextPart(body.done ? "done" : "running");
           if (body.done) return;
+          if (body.busy) await new Promise((r) => setTimeout(r, BUSY_POLL_MS));
           continue;
         }
         if ((!res || [502, 503, 504].includes(res.status)) && hiccups++ < MAX_HICCUPS) {
