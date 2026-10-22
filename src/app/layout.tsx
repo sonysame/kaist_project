@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { Headphones } from "@/components/icons";
 import { Suspense } from "react";
 import { CurrentNavLinks, NavLinks } from "@/components/nav-links";
@@ -10,7 +10,6 @@ import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-const notoKr = Noto_Sans_KR({ variable: "--font-noto-kr", weight: ["400", "500", "700", "900"], preload: false });
 
 export const metadata: Metadata = {
   title: "ListenUp · 진짜 영어로 듣기 공부",
@@ -19,7 +18,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} ${notoKr.variable} h-full antialiased`}>
+    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <head>
+        {/* 한글 글꼴은 빌드 때 내려받지 않고 브라우저가 필요한 글자 조각만 받는다 (빌드 때 수백 개 파일을 받다가 가끔 실패해서) */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap"
+        />
+      </head>
       <body className="flex min-h-full flex-col font-sans">
         <AuthProvider>
         <header className="sticky top-0 z-40 border-b border-line bg-surface/90 backdrop-blur">
