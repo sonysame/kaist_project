@@ -89,8 +89,6 @@ export function AdminDashboard() {
       {/* Gemini 사용량 · 모델 설정 · 1시간 파일 예시 */}
       <AdminGemini stats={stats.gemini} onChanged={load} />
 
-      <AdminErrors />
-
       {/* 요약 숫자 */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Tile label="사용자" value={`${t.users}명`} />
@@ -218,6 +216,9 @@ export function AdminDashboard() {
           ))}
         </ul>
       </section>
+
+      {/* 맨 아래: 처리 중 오류와 건너뛴 단계 */}
+      <AdminErrors />
     </div>
   );
 }
