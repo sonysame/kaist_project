@@ -124,12 +124,12 @@ export function JobView({ id }: { id: string }) {
     }
   }, [id, load]);
 
-  // 처리 진행은 주인만 한다 (샘플을 보러 온 사람이 처리를 돌리지 않도록)
-  const shouldAutoRun = job?.status === "processing" && job.can_edit;
+  // 주인이나 관리자가 이 화면을 열어 두면 처리를 이어 간다 (샘플을 보러 온 사람은 처리를 돌리지 않음)
+  const shouldAutoRun = job?.status === "processing" && job.can_process;
 
   // 1부가 끝나면 2부도 이 화면에서 이어서 처리한다 (2부 화면을 따로 열지 않아도 되게)
   const [nextPart, setNextPart] = useState<"running" | "done" | "paused" | "stopped" | null>(null);
-  const nextId = job?.status === "done" && job.can_edit ? (job.next_part_id ?? null) : null;
+  const nextId = job?.status === "done" && job.can_process ? (job.next_part_id ?? null) : null;
   useEffect(() => {
     if (!nextId) return;
     let alive = true;
