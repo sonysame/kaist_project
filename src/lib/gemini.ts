@@ -32,6 +32,8 @@ function rethrow(err: unknown): never {
     if (/PerDay/i.test(msg)) throw new RateLimitError("오늘 Gemini 무료 한도를 다 썼어요.", true);
     throw new RateLimitError("Gemini 무료 사용 한도에 도달했어요. 잠시 후 다시 시도해 주세요.");
   }
+  // 다시 시도해도 계속 붐비면 멈추지 않고, 분당 한도처럼 잠깐 기다렸다가 이어 가게 한다
+  if (isBusy(err)) throw new RateLimitError("Gemini가 지금 붐벼서 잠깐 기다렸다가 이어서 처리해요.");
   throw err instanceof Error ? err : new Error(err instanceof Error ? err.message : String(err));
 }
 

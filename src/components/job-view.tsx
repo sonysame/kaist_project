@@ -666,7 +666,7 @@ function StatusPanel({
               {!failed && <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />}
               {run.kind === "running" && run.label}
               {run.kind === "waiting" &&
-                `무료 한도에 걸려 잠시 기다리는 중… ${Math.max(0, Math.ceil((run.until - now) / 1000))}초`}
+                `Gemini가 바빠서 잠시 기다리는 중… ${Math.max(0, Math.ceil((run.until - now) / 1000))}초`}
               {failed && <span className="text-danger">처리가 멈췄어요</span>}
               {run.kind === "paused" && "오늘 처리 한도를 다 써서 쉬는 중"}
               {run.kind === "idle" && !failed && "준비 중…"}
