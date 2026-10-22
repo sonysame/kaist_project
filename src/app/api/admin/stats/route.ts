@@ -3,6 +3,7 @@ import { currentUser, isAdmin, unauthorized } from "@/lib/auth";
 import { getUploadLimit, startOfTodayKST } from "@/lib/quota";
 import { dailyLimits, startOfGeminiDay } from "@/lib/gemini-usage";
 import { getModels } from "@/lib/models";
+import { isSampleJob } from "@/lib/sample";
 
 // Supabase 무료 플랜 한도 (관리자 화면의 막대 그래프 기준)
 const FREE_STORAGE_BYTES = 1024 ** 3; // 파일 저장 1GB
@@ -97,13 +98,14 @@ export async function GET() {
         admin: isAdmin(u),
       }))
       .sort((a, b) => (b.lastSignInAt ?? "").localeCompare(a.lastSignInAt ?? "")),
-    recentJobs: (jobs.data ?? []).slice(0, 20).map((j) => ({
+    recentJobs: (jobs.data ?? []).map((j) => ({
       id: j.id,
       filename: j.filename,
       status: j.status,
       durationSec: j.duration_sec,
       createdAt: j.created_at,
       owner: j.user_id ? (emailOf.get(j.user_id) ?? "") : "(주인 없음)",
+      isSample: isSampleJob(j.id),
     })),
   });
 }

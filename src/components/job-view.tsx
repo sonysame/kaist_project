@@ -355,7 +355,7 @@ export function JobView({ id }: { id: string }) {
             <Meta icon={<Text width={15} height={15} />}>문장 {contentCount}개</Meta>
           </div>
         </div>
-        {job.can_edit && (
+        {job.can_edit && !job.is_sample && (
           <button
             onClick={remove}
             className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-muted hover:border-danger hover:text-danger"

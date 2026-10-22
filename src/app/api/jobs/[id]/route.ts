@@ -1,6 +1,6 @@
 import { BUCKET, supabaseAdmin } from "@/lib/supabase-server";
 import { mergeSpeakers } from "@/lib/speakers";
-import { requireJobOwner, requireJobReader } from "@/lib/auth";
+import { currentUser, isAdmin, requireJobOwner, requireJobReader } from "@/lib/auth";
 import { isSampleJob } from "@/lib/sample";
 
 export async function GET(_request: Request, ctx: RouteContext<"/api/jobs/[id]">) {
@@ -78,10 +78,16 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/jobs/[id]"
   return Response.json({ ok: true });
 }
 
+/** 학습 자료 삭제: 주인 또는 관리자(관리자 페이지). 샘플은 로그인 전 화면에 쓰여서 지우지 않는다. */
 export async function DELETE(_request: Request, ctx: RouteContext<"/api/jobs/[id]">) {
   const { id } = await ctx.params;
-  const auth = await requireJobOwner(id);
-  if ("error" in auth) return auth.error;
+  if (isSampleJob(id)) {
+    return Response.json({ error: "샘플 학습 자료는 지울 수 없어요. 먼저 lib/sample.ts에서 샘플 목록에서 빼 주세요." }, { status: 400 });
+  }
+  if (!isAdmin(await currentUser())) {
+    const auth = await requireJobOwner(id);
+    if ("error" in auth) return auth.error;
+  }
   const db = supabaseAdmin();
   const storage = db.storage.from(BUCKET);
   const { data: files } = await storage.list(id);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { clock } from "@/lib/format";
 import { AdminGemini, type GeminiStats } from "./admin-gemini";
+import { Trash } from "./icons";
 import { useAuth } from "./auth-provider";
 
 type Stats = {
@@ -31,7 +32,7 @@ type Stats = {
     vocab: number;
     admin: boolean;
   }[];
-  recentJobs: { id: string; filename: string; status: string; durationSec: number; createdAt: string; owner: string }[];
+  recentJobs: { id: string; filename: string; status: string; durationSec: number; createdAt: string; owner: string; isSample: boolean }[];
 };
 
 const STATUS_LABEL: Record<string, string> = { done: "완료", processing: "처리 중", error: "멈춤", uploading: "업로드 중" };
@@ -57,6 +58,20 @@ export function AdminDashboard() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  async function removeJob(j: Stats["recentJobs"][number]) {
+    if (!confirm(`'${j.filename}' (${j.owner})을(를) 삭제할까요?
+대본·해석과 오디오 파일이 모두 지워지고 되돌릴 수 없어요.`)) return;
+    setDeleting(j.id);
+    setDeleteError(null);
+    const r = await fetch(`/api/jobs/${j.id}`, { method: "DELETE" });
+    const data = await r.json().catch(() => ({}));
+    setDeleting(null);
+    if (!r.ok) setDeleteError(data.error ?? "삭제하지 못했어요.");
+    load();
+  }
 
   if (error) return <p className="rounded-xl bg-danger-soft p-4 text-sm text-danger">{error}</p>;
   if (!stats)
@@ -171,17 +186,32 @@ export function AdminDashboard() {
 
       {/* 최근 학습 자료 */}
       <section>
-        <h2 className="mb-3 text-lg font-bold">최근 올라온 학습 자료</h2>
+        <h2 className="mb-3 text-lg font-bold">
+          학습 자료 <span className="text-sm font-semibold text-muted">{stats.recentJobs.length}개</span>
+        </h2>
+        {deleteError && <p className="mb-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{deleteError}</p>}
         <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
           {stats.recentJobs.map((j) => (
             <li key={j.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
               <Link href={`/jobs/${j.id}`} className="min-w-0 flex-1 truncate font-semibold hover:text-accent">
+                {j.isSample && (
+                  <span className="mr-1.5 rounded bg-warm-soft px-1.5 py-0.5 text-[10px] font-bold text-warm">샘플</span>
+                )}
                 {j.filename}
               </Link>
               <span className="text-muted">{j.owner}</span>
               <span className="tabular-nums text-muted">{clock(j.durationSec)}</span>
               <span className="w-16 text-right text-muted">{STATUS_LABEL[j.status] ?? j.status}</span>
               <span className="w-28 text-right text-muted">{dateTime(j.createdAt)}</span>
+              <button
+                onClick={() => removeJob(j)}
+                disabled={j.isSample || deleting === j.id}
+                title={j.isSample ? "샘플은 지울 수 없어요" : "삭제"}
+                aria-label={`${j.filename} 삭제`}
+                className="grid h-8 w-8 place-items-center rounded-lg border border-line text-muted hover:border-danger hover:text-danger disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-line disabled:hover:text-muted"
+              >
+                <Trash width={15} height={15} />
+              </button>
             </li>
           ))}
         </ul>
