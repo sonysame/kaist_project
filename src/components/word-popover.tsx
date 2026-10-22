@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { vocabFetch } from "@/lib/device";
 import type { Definition, Utterance } from "@/lib/types";
 import { speak } from "@/lib/speak";
 import { Bookmark, Check, Volume } from "./icons";
@@ -67,8 +66,9 @@ export function WordPopover({ target, jobId, onClose }: { target: WordTarget; jo
   async function save() {
     if (!def) return;
     setSaved("saving");
-    const res = await vocabFetch("/api/vocab", {
+    const res = await fetch("/api/vocab", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         word,
         ...def,

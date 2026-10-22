@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { vocabFetch } from "@/lib/device";
 import { clock, download } from "@/lib/format";
 import { speak } from "@/lib/speak";
 import type { VocabEntry } from "@/lib/types";
@@ -19,7 +18,7 @@ export function VocabList() {
 
   useEffect(() => {
     const fetchList = async () => {
-      const r = await vocabFetch("/api/vocab");
+      const r = await fetch("/api/vocab");
       const data = await r.json();
       if (!r.ok) throw new Error(data.error);
       return data as VocabEntry[];
@@ -28,7 +27,7 @@ export function VocabList() {
       let list = await fetchList();
       // 단어장이 비어 있으면 기본 단어를 요청한다. 계정마다 한 번만 넣는지는 서버가 판단한다.
       if (!list.length) {
-        const r = await vocabFetch("/api/vocab/starter", { method: "POST" });
+        const r = await fetch("/api/vocab/starter", { method: "POST" });
         if (r.ok && (await r.json()).inserted) list = await fetchList();
       }
       setItems(list);
@@ -37,7 +36,7 @@ export function VocabList() {
 
   async function remove(id: number) {
     setItems((prev) => prev?.filter((v) => v.id !== id) ?? null);
-    await vocabFetch(`/api/vocab?id=${id}`, { method: "DELETE" });
+    await fetch(`/api/vocab?id=${id}`, { method: "DELETE" });
   }
 
   function exportCsv() {

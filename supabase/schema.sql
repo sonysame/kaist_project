@@ -39,10 +39,10 @@ create table if not exists public.utterances (
 );
 create index if not exists utterances_job_start on public.utterances (job_id, start_sec);
 
--- 단어장. 로그인이 없어서 브라우저마다 만든 익명 ID(device_id)로 구분한다.
+-- 단어장. 계정(user_id)마다 따로 보관하고, 같은 계정에 같은 단어는 하나만 둔다.
 create table if not exists public.vocab (
   id bigint generated always as identity primary key,
-  device_id text not null,
+  user_id uuid not null references auth.users (id) on delete cascade,
   word text not null,
   lemma text not null,
   part_of_speech text,
@@ -51,10 +51,8 @@ create table if not exists public.vocab (
   sentence_ko text,
   job_id uuid references public.jobs (id) on delete set null,
   start_sec double precision,
-  created_at timestamptz not null default now(),
-  unique (device_id, lemma)
+  created_at timestamptz not null default now()
 );
-create index if not exists vocab_device on public.vocab (device_id, created_at desc);
 
 -- 전사가 끝난 뒤 대본 전체를 읽고 광고를 표시하고 화자 이름을 추측한다
 alter table public.utterances add column if not exists is_ad boolean not null default false;
@@ -64,7 +62,6 @@ alter table public.jobs add column if not exists analyzed boolean not null defau
 alter table public.jobs add column if not exists user_id uuid references auth.users (id) on delete cascade;
 create index if not exists jobs_user_created on public.jobs (user_id, created_at desc);
 alter table public.vocab add column if not exists user_id uuid references auth.users (id) on delete cascade;
-alter table public.vocab alter column device_id drop not null;
 create unique index if not exists vocab_user_lemma on public.vocab (user_id, lemma);
 create index if not exists vocab_user_created on public.vocab (user_id, created_at desc);
 

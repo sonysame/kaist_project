@@ -45,6 +45,7 @@ Supabase 대시보드 → **SQL Editor**에서 아래 파일을 순서대로 실
 - `002_ads_and_names.sql`: 광고 표시, 분석 완료 칸
 - `003_users.sql`: 사용자별 자료·단어장, 하루 업로드 기록, DB 크기 함수
 - `004_gemini_log.sql`: Gemini 호출 기록, 앱 설정(모델)
+- `005_drop_device_id.sql`: 단어장의 옛 브라우저 ID 칸 지우기 (계정으로만 구분)
 
 ### 3. 구글 로그인 설정
 1. [Google Cloud 콘솔](https://console.cloud.google.com) → Google 인증 플랫폼에서 앱을 만들고(대상: 외부) **웹 애플리케이션** 클라이언트를 만들어요.

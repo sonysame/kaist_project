@@ -4,25 +4,9 @@ import { isSampleJob } from "@/lib/sample";
 
 const COLUMNS = "id, word, lemma, part_of_speech, meaning_ko, sentence_en, sentence_ko, job_id, start_sec, created_at";
 
-/** 로그인 전에 이 브라우저 ID로 저장해 둔 단어를 계정으로 옮긴다. 계정에 이미 있는 단어는 버린다. */
-async function claimDeviceWords(userId: string, request: Request) {
-  const device = request.headers.get("x-device-id");
-  if (!device || !/^[0-9a-f-]{36}$/i.test(device)) return;
-  const db = supabaseAdmin();
-  const { data: orphans } = await db.from("vocab").select("id, lemma").eq("device_id", device).is("user_id", null);
-  if (!orphans?.length) return;
-  const { data: mine } = await db.from("vocab").select("lemma").eq("user_id", userId);
-  const have = new Set((mine ?? []).map((v) => v.lemma));
-  const dupes = orphans.filter((o) => have.has(o.lemma)).map((o) => o.id);
-  const move = orphans.filter((o) => !have.has(o.lemma)).map((o) => o.id);
-  if (dupes.length) await db.from("vocab").delete().in("id", dupes);
-  if (move.length) await db.from("vocab").update({ user_id: userId }).in("id", move);
-}
-
-export async function GET(request: Request) {
+export async function GET() {
   const user = await currentUser();
   if (!user) return unauthorized();
-  await claimDeviceWords(user.id, request);
   const { data, error } = await supabaseAdmin()
     .from("vocab")
     .select(COLUMNS)
