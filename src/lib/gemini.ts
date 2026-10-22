@@ -42,16 +42,31 @@ const generateUsage = (r: GenerateResult): Usage => ({
   output: r.usageMetadata?.candidatesTokenCount,
 });
 
+/** Google 쪽이 잠깐 붐빌 때 나는 오류 (503 "high demand") */
+function isBusy(err: unknown) {
+  const status = (err as { status?: number })?.status;
+  const msg = err instanceof Error ? err.message : String(err);
+  return status === 503 || /UNAVAILABLE|high demand|overloaded/i.test(msg);
+}
+// 붐빌 때는 잠깐 쉬었다가 두 번까지 다시 시도한다
+const BUSY_RETRY_MS = [3_000, 10_000];
+
 /** Gemini 호출 한 번을 감싸서 성공·한도 초과·실패와 토큰 수를 기록한다 (관리자 페이지의 사용량 표시용) */
 async function tracked<T>(kind: GeminiKind, model: string, call: () => Promise<T>, usage: (r: T) => Usage): Promise<T> {
-  try {
-    const result = await call();
-    const u = usage(result);
-    await logGemini({ model, kind, status: "ok", inputTokens: u.input, outputTokens: u.output });
-    return result;
-  } catch (err) {
-    await logGemini({ model, kind, status: isRateLimited(err) ? "rate_limited" : "error" });
-    throw err;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const result = await call();
+      const u = usage(result);
+      await logGemini({ model, kind, status: "ok", inputTokens: u.input, outputTokens: u.output });
+      return result;
+    } catch (err) {
+      if (isBusy(err) && attempt < BUSY_RETRY_MS.length) {
+        await new Promise((r) => setTimeout(r, BUSY_RETRY_MS[attempt]));
+        continue;
+      }
+      await logGemini({ model, kind, status: isRateLimited(err) ? "rate_limited" : "error" });
+      throw err;
+    }
   }
 }
 
@@ -186,7 +201,7 @@ export async function summarizeTranscript(lines: { speaker: string; text: string
 }
 
 /**
- * 대본 전체를 한 번 읽고 (1) 광고·후원사 소개 문장과 (2) 화자 이름을 찾는다.
+ * 대본 전체를 한 번 읽고 (1) 광고·후원사 소개 문장(노래 가사 줄도 함께 숨기려고 포함)과 (2) 화자 이름을 찾는다.
  * 이름은 자기소개나 서로 부르는 말로 확실할 때만 넣고, 모르면 비워 둔다.
  */
 export async function analyzeTranscript(lines: { id: number; speaker: string; text: string }[]): Promise<TranscriptAnalysis> {
@@ -200,6 +215,8 @@ export async function analyzeTranscript(lines: { id: number; speaker: string; te
     "   e.g. thanking a sponsor, describing a sponsor's product, promo codes or URLs, 'this episode is brought to you by'.",
     "   Include the whole ad block, from its lead-in line to its last line. Do NOT include normal discussion",
     "   that merely mentions a company as part of the episode's topic. If there are no ads, return an empty list.",
+    "   Also include lines that are song lyrics or singing rather than speech (theme songs, intro/outro music),",
+    "   so they are hidden the same way. Do NOT include people quoting or talking about a song.",
     `2) speakers: for each label (${speakers.join(", ")}), give the person's name if the transcript makes it clear —`,
     "   a self-introduction ('I'm Ben Gilbert'), or another speaker addressing them by name right before they reply.",
     "   Use the fullest form that is stated (e.g. 'Ben Gilbert'). If unsure, use an empty string. Never invent names.",

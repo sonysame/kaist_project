@@ -30,7 +30,7 @@ export function JobView({ id }: { id: string }) {
   const [run, setRun] = useState<RunState>({ kind: "idle" });
   const [alwaysKo, setAlwaysKo] = useState(false);
   const [follow, setFollow] = useState(true);
-  const [showAds, setShowAds] = useState(false);
+  const [showAds, setShowAds] = useState(true); // 기본은 광고도 보여 주고, 끄면 숨기고 건너뛴다
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -43,6 +43,12 @@ export function JobView({ id }: { id: string }) {
   const loopRange = useRef<Range | null>(null);
   const stopAt = useRef<number | null>(null); // "이 문장만 듣기"로 재생할 때 멈출 시각
   const scrollToAdPending = useRef(false);
+
+  // 뒤로 가기 등으로 이 화면을 떠나면 소리를 멈춘다 (Next가 떠난 화면을 숨겨 두기만 해서 audio가 계속 재생될 수 있음)
+  useEffect(() => {
+    const el = audio.current;
+    return () => el?.pause();
+  }, [job?.audio_url]);
 
   // 연속된 광고 문장을 하나로 묶은 구간 (목록 표시와 재생 건너뛰기에 씀)
   const adBlocks = useMemo(() => {
@@ -493,7 +499,11 @@ export function JobView({ id }: { id: string }) {
                   checked={showAds}
                   onChange={changeShowAds}
                   label={`광고 보기`}
-                  hint={`광고 ${adBlocks.length}곳은 숨기고 재생할 때도 건너뛰어요`}
+                  hint={
+                    showAds
+                      ? `끄면 광고 ${adBlocks.length}곳을 숨기고 재생할 때도 건너뛰어요`
+                      : `광고 ${adBlocks.length}곳은 숨기고 재생할 때도 건너뛰어요`
+                  }
                 />
               )}
             </div>
