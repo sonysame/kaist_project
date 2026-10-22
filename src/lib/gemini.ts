@@ -73,11 +73,12 @@ async function tracked<T>(kind: GeminiKind, model: string, call: () => Promise<T
       await logGemini({ model, kind, status: "ok", inputTokens: u.input, outputTokens: u.output });
       return result;
     } catch (err) {
+      // Google은 실패한 요청과 다시 시도한 요청도 하루 한도에 센다. 관리자 페이지 숫자가 AI Studio와 맞도록 시도마다 남긴다.
+      await logGemini({ model, kind, status: isRateLimited(err) ? "rate_limited" : "error" });
       if (isBusy(err) && attempt < BUSY_RETRY_MS.length) {
         await new Promise((r) => setTimeout(r, BUSY_RETRY_MS[attempt]));
         continue;
       }
-      await logGemini({ model, kind, status: isRateLimited(err) ? "rate_limited" : "error" });
       throw err;
     }
   }

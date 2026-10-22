@@ -59,9 +59,10 @@ export async function GET() {
   for (const m of Object.values(models)) row(m);
   for (const g of geminiLog.data ?? []) {
     const r = row(g.model);
-    if (g.status === "ok") r.calls++;
-    else if (g.status === "rate_limited") r.rateLimited++;
-    else r.errors++;
+    // 하루 한도에는 실패한 시도도 들어가서 (AI Studio와 같은 기준) 모든 시도를 센다
+    r.calls++;
+    if (g.status === "rate_limited") r.rateLimited++;
+    else if (g.status === "error") r.errors++;
     r.inputTokens += g.input_tokens ?? 0;
     r.outputTokens += g.output_tokens ?? 0;
   }
