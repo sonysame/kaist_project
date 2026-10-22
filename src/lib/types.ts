@@ -47,6 +47,8 @@ export type Job = {
   is_sample?: boolean;
   /** 긴 파일을 나눠 올렸을 때 이 자료(1부) 다음 부분 */
   next_part_id?: string | null;
+  /** 한국어 3~5줄 요약 (처리가 끝나면 생긴다) */
+  summary?: string[] | null;
 };
 
 export type JobDetail = Job & {

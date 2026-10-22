@@ -421,6 +421,20 @@ export function JobView({ id }: { id: string }) {
         )}
       </div>
 
+      {!!job.summary?.length && (
+        <section className="mt-5 rounded-2xl border border-line bg-surface p-5 shadow-card">
+          <h2 className="text-sm font-bold text-accent">이런 내용이에요</h2>
+          <ul className="mt-2 space-y-1.5 text-[15px] leading-relaxed">
+            {job.summary.map((line, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {job.status !== "done" && (
         <div className="mt-6">
           <StatusPanel job={job} run={run} finished={finishedChunks} onRetry={process} />

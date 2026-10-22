@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase-server";
 
-export type GeminiKind = "transcribe" | "translate" | "define" | "analyze" | "correct";
+export type GeminiKind = "transcribe" | "translate" | "define" | "analyze" | "correct" | "summarize";
 
 /**
  * 무료 등급 하루 요청 한도 (AI Studio에서 확인한 값). Google이 바꾸면 여기만 고치면 된다.

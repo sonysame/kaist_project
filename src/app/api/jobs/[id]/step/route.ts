@@ -1,6 +1,6 @@
 import { BUCKET, supabaseAdmin } from "@/lib/supabase-server";
 import { chunkPath } from "@/lib/layout";
-import { RateLimitError, analyzeTranscript, findCorrections, transcribeChunk, translateUtterances } from "@/lib/gemini";
+import { RateLimitError, analyzeTranscript, findCorrections, summarizeTranscript, transcribeChunk, translateUtterances } from "@/lib/gemini";
 import { mergeSpeakers } from "@/lib/speakers";
 import { requireJobOwner } from "@/lib/auth";
 import { applyTranscriptCorrections } from "@/lib/corrections-db";
@@ -125,6 +125,18 @@ async function analyze(jobId: string, userNames: Record<string, string>) {
     }
   }
   await db.from("jobs").update({ speaker_names: merged }).eq("id", jobId);
+
+  // 학습 자료 화면 맨 위에 보여 줄 3~5줄 요약. 실패해도 대본은 그대로 두고 넘어간다.
+  try {
+    const ads = new Set(adIds);
+    const { data: fixed } = await db.from("utterances").select("id, speaker, text_en").eq("job_id", jobId).order("start_sec");
+    const content = (fixed ?? []).filter((l) => !ads.has(l.id));
+    const label = (spk: string) => merged[spk] ?? `화자 ${spk.slice(1)}`;
+    const summary = await summarizeTranscript(content.map((l) => ({ speaker: label(l.speaker), text: l.text_en })));
+    if (summary.length) await db.from("jobs").update({ summary }).eq("id", jobId);
+  } catch (err) {
+    console.error("요약을 건너뜀:", err);
+  }
 }
 
 async function transcribe(jobId: string, chunk: ChunkRow, chunks: ChunkRow[], nextSpeakerNo: number) {

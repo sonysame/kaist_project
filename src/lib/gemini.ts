@@ -158,6 +158,36 @@ export async function defineWord(word: string, sentence: string): Promise<Defini
 
 export type TranscriptAnalysis = { adIds: number[]; names: Record<string, string> };
 
+/** 대본 전체(광고 제외)를 읽고 무슨 내용인지 한국어 3~5줄로 요약한다. 학습 자료 화면 맨 위에 보여 준다. */
+export async function summarizeTranscript(lines: { speaker: string; text: string }[]): Promise<string[]> {
+  const ai = client();
+  const TRANSLATE_MODEL = await getModel("text");
+  const prompt = [
+    "Below is a transcript of English audio (format: speaker: text). Summarize what it is about for a Korean learner",
+    "who is deciding what to study. Write 3 to 5 short Korean sentences, one per item: the topic first, then the main",
+    "points in order. Use people's and companies' names as they appear. Do not mention ads or sponsors.",
+    "",
+    lines.map((l) => `${l.speaker}: ${l.text}`).join("\n"),
+  ].join("\n");
+  try {
+    const res = await tracked("summarize", TRANSLATE_MODEL, () => ai.models.generateContent({
+      model: TRANSLATE_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
+      },
+    }), generateUsage);
+    const parsed = JSON.parse(res.text ?? "[]") as unknown;
+    return (Array.isArray(parsed) ? parsed : [])
+      .filter((s): s is string => typeof s === "string" && !!s.trim())
+      .map((s) => s.trim().slice(0, 300))
+      .slice(0, 5);
+  } catch (err) {
+    rethrow(err);
+  }
+}
+
 /**
  * 대본 전체를 한 번 읽고 (1) 광고·후원사 소개 문장과 (2) 화자 이름을 찾는다.
  * 이름은 자기소개나 서로 부르는 말로 확실할 때만 넣고, 모르면 비워 둔다.
