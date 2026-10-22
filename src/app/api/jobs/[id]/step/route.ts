@@ -100,7 +100,9 @@ async function analyze(jobId: string, userNames: Record<string, string>) {
 
   // 잘못 들은 고유명사 고치기 (예: 10 Cent → Tencent). 실패해도 대본은 그대로 두고 넘어간다.
   try {
-    await applyTranscriptCorrections(db, jobId, await findCorrections(input));
+    const fixedIds = await applyTranscriptCorrections(db, jobId, await findCorrections(input));
+    // 해석은 구간마다 교정 전에 만들어 둔 것이라, 고친 문장만 다시 해석한다 (실패하면 예전 해석을 그대로 둔다)
+    await retranslate(fixedIds).catch((err) => console.error("교정한 문장 다시 해석을 건너뜀:", err));
   } catch (err) {
     console.error("고유명사 교정을 건너뜀:", err);
   }
@@ -199,6 +201,22 @@ async function transcribe(jobId: string, chunk: ChunkRow, chunks: ChunkRow[], ne
 }
 
 /** 번역이 안 된 발화를 최대 TRANSLATE_BATCH개 번역한다. 구간 번역이 다 끝나면 true. */
+/** 고유명사를 고친 문장만 골라 한국어 해석을 다시 만든다 */
+async function retranslate(ids: number[]) {
+  const db = supabaseAdmin();
+  for (let i = 0; i < ids.length; i += TRANSLATE_BATCH) {
+    const { data: rows } = await db
+      .from("utterances")
+      .select("id, speaker, text_en")
+      .in("id", ids.slice(i, i + TRANSLATE_BATCH));
+    if (!rows?.length) continue;
+    const ko = await translateUtterances(rows.map((u) => ({ id: u.id, speaker: u.speaker, text: u.text_en })), []);
+    await Promise.all(
+      rows.filter((u) => ko.get(u.id)).map((u) => db.from("utterances").update({ text_ko: ko.get(u.id) }).eq("id", u.id)),
+    );
+  }
+}
+
 async function translate(jobId: string, chunk: ChunkRow): Promise<boolean> {
   const db = supabaseAdmin();
   const { data: todo } = await db

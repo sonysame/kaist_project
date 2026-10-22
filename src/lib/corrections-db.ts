@@ -3,18 +3,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyCorrections, joinWords, type Correction } from "./corrections";
 import type { UtteranceWord } from "./types";
 
-/** 작업의 모든 발화에 교정을 적용하고, 바뀐 발화만 저장한다. 바뀐 곳 수를 돌려준다. */
-export async function applyTranscriptCorrections(db: SupabaseClient, jobId: string, corrections: Correction[]) {
-  if (!corrections.length) return 0;
+/** 작업의 모든 발화에 교정을 적용하고, 바뀐 발화만 저장한다. 바뀐 발화의 ID를 돌려준다 (다시 해석하려고). */
+export async function applyTranscriptCorrections(db: SupabaseClient, jobId: string, corrections: Correction[]): Promise<number[]> {
+  if (!corrections.length) return [];
   const { data: rows, error } = await db.from("utterances").select("id, words").eq("job_id", jobId);
   if (error) throw new Error(error.message);
 
-  let total = 0;
   const updates: { id: number; words: UtteranceWord[] }[] = [];
   for (const row of rows ?? []) {
     const { words, changed } = applyCorrections(row.words as UtteranceWord[], corrections);
     if (!changed) continue;
-    total += changed;
     updates.push({ id: row.id, words });
   }
   // 한꺼번에 너무 많이 보내지 않도록 20개씩
@@ -33,5 +31,5 @@ export async function applyTranscriptCorrections(db: SupabaseClient, jobId: stri
     const { words, changed } = applyCorrections(tokens, corrections);
     if (changed) await db.from("vocab").update({ sentence_en: joinWords(words) }).eq("id", v.id);
   }
-  return total;
+  return updates.map((u) => u.id);
 }
