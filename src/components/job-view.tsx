@@ -119,6 +119,35 @@ export function JobView({ id }: { id: string }) {
 
   // 처리 진행은 주인만 한다 (샘플을 보러 온 사람이 처리를 돌리지 않도록)
   const shouldAutoRun = job?.status === "processing" && job.can_edit;
+
+  // 1부가 끝나면 2부도 이 화면에서 이어서 처리한다 (2부 화면을 따로 열지 않아도 되게)
+  const [nextPart, setNextPart] = useState<"running" | "done" | "paused" | "stopped" | null>(null);
+  const nextId = job?.status === "done" && job.can_edit ? (job.next_part_id ?? null) : null;
+  useEffect(() => {
+    if (!nextId) return;
+    let alive = true;
+    (async () => {
+      while (alive) {
+        const res = await fetch(`/api/jobs/${nextId}/step`, { method: "POST" }).catch(() => null);
+        const body = res ? await res.json().catch(() => ({})) : {};
+        if (!alive) return;
+        if (res?.ok) {
+          setNextPart(body.done ? "done" : "running");
+          if (body.done) return;
+          continue;
+        }
+        if (res?.status === 429 && !body.daily) {
+          await new Promise((r) => setTimeout(r, RATE_LIMIT_WAIT_MS));
+          continue;
+        }
+        setNextPart(res?.status === 429 ? "paused" : "stopped");
+        return;
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [nextId]);
   useEffect(() => {
     // 서버 처리 루프를 시작하는 외부 동기화라서 effect에서 부른다
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -314,9 +343,13 @@ export function JobView({ id }: { id: string }) {
   }
 
   async function remove() {
-    if (!confirm("이 작업과 오디오를 삭제할까요? 되돌릴 수 없어요.")) return;
+    if (!confirm("이 학습 자료를 삭제할까요?\n대본·해석과 오디오가 모두 지워지고 되돌릴 수 없어요.\n(저장한 단어는 단어장에 남아요)")) return;
     runToken.current++;
-    await fetch(`/api/jobs/${id}`, { method: "DELETE" });
+    const r = await fetch(`/api/jobs/${id}`, { method: "DELETE" });
+    if (!r.ok) {
+      alert((await r.json().catch(() => ({}))).error ?? "삭제하지 못했어요.");
+      return;
+    }
     router.push("/");
   }
 
@@ -353,6 +386,27 @@ export function JobView({ id }: { id: string }) {
             <Meta icon={<Clock width={15} height={15} />}>{clock(job.duration_sec)}</Meta>
             <Meta icon={<Users width={15} height={15} />}>화자 {speakers.length}명</Meta>
             <Meta icon={<Text width={15} height={15} />}>문장 {contentCount}개</Meta>
+            {job.prev_part_id && (
+              <Link
+                href={`/jobs/${job.prev_part_id}`}
+                className="inline-flex items-center rounded-full bg-accent-soft px-3 py-1 font-semibold text-accent hover:bg-accent hover:text-white"
+              >
+                ← 1부로 가기
+              </Link>
+            )}
+            {job.next_part_id && (
+              <Link
+                href={`/jobs/${job.next_part_id}`}
+                className="inline-flex items-center rounded-full bg-accent-soft px-3 py-1 font-semibold text-accent hover:bg-accent hover:text-white"
+              >
+                2부로 가기 →
+                {nextPart && nextPart !== "done" && (
+                  <span className="ml-1.5 text-xs font-normal">
+                    {nextPart === "running" ? "(처리 중…)" : nextPart === "paused" ? "(내일 이어서 처리)" : "(2부에서 다시 시도)"}
+                  </span>
+                )}
+              </Link>
+            )}
           </div>
         </div>
         {job.can_edit && !job.is_sample && (

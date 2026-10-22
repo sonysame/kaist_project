@@ -2,7 +2,7 @@
 
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
 import type { ChunkRange } from "./layout";
-import { TRANSCRIBE_KBPS, maxDurationText, playbackKbps } from "./audio-limits";
+import { AUDIO_KBPS, MAX_DURATION_SEC, MAX_PART_SEC, durationText, partCount } from "./audio-limits";
 
 const CORE_BASE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
 // scripts/copy-ffmpeg.mjs가 public/ffmpeg 에 복사해 둔 파일 (번들러를 거치지 않음)
@@ -32,14 +32,11 @@ function getFFmpeg() {
   return loading;
 }
 
-const MP3_ARGS = ["-vn", "-ac", "1", "-ar", "16000", "-b:a"];
-
-// splitAudio가 자를 32kbps 파일 이름 (짧은 파일은 재생용 full.mp3와 같다)
-let chunkSource = "full.mp3";
+export type AudioPart = { name: string; duration: number; blob: Blob };
 
 /**
- * 원본 파일을 16kHz 모노 MP3로 줄인다. 음성 인식에는 32kbps면 충분하고, 3시간 녹음이 40MB 정도다.
- * 그보다 길면 받아 적기용(32kbps)과 재생용(24·16kbps)을 한 번에 따로 만든다.
+ * 원본 파일을 16kHz 모노 32kbps MP3로 줄인다. 음성 인식에도, 듣기에도 충분한 품질이다.
+ * 3시간 반(파일당 50MB)이 넘으면 가운데쯤 말이 멈춘 곳에서 잘라 1부·2부 두 파일로 만든다.
  * 원본은 메모리에 복사하지 않고 그대로 읽어서(WORKERFS) 큰 파일도 다룰 수 있다.
  */
 export async function compressAudio(file: File, onProgress: (ratio: number) => void) {
@@ -59,40 +56,71 @@ export async function compressAudio(file: File, onProgress: (ratio: number) => v
     // 먼저 길이만 읽는다 (출력 없이 실행하면 정보만 찍고 바로 끝난다)
     await ffmpeg.exec(["-i", input]);
     if (!duration) throw new Error("오디오 길이를 읽지 못했어요. 지원하는 오디오 파일인지 확인해 주세요.");
-    const kbps = playbackKbps(duration);
-    if (!kbps) {
-      throw new Error(`${maxDurationText()}이 넘는 오디오는 올릴 수 없어요.`);
-    }
+    if (duration > MAX_DURATION_SEC) throw new Error(`${durationText(MAX_DURATION_SEC)}이 넘는 오디오는 올릴 수 없어요.`);
 
-    chunkSource = kbps === TRANSCRIBE_KBPS ? "full.mp3" : "transcribe.mp3";
-    const outputs = [[...MP3_ARGS, `${kbps}k`, "full.mp3"]];
-    if (chunkSource !== "full.mp3") outputs.push([...MP3_ARGS, `${TRANSCRIBE_KBPS}k`, chunkSource]);
     ffmpeg.on("progress", onProg);
-    const code = await ffmpeg.exec(["-y", "-i", input, ...outputs.flat()]);
+    const code = await ffmpeg.exec(["-y", "-i", input, "-vn", "-ac", "1", "-ar", "16000", "-b:a", `${AUDIO_KBPS}k`, "full.mp3"]);
     ffmpeg.off("progress", onProg);
     if (code !== 0) throw new Error("오디오를 변환하지 못했어요. 지원하는 오디오 파일인지 확인해 주세요.");
-    const data = (await ffmpeg.readFile("full.mp3")) as Uint8Array;
-    return { duration, full: new Blob([data as BlobPart], { type: "audio/mpeg" }) };
   } finally {
     ffmpeg.off("log", onLog);
     ffmpeg.off("progress", onProg);
     await ffmpeg.unmount(dir).catch(() => {});
   }
+
+  const read = async (name: string) => new Blob([(await ffmpeg.readFile(name)) as BlobPart], { type: "audio/mpeg" });
+  if (partCount(duration) === 1) return { duration, parts: [{ name: "full.mp3", duration, blob: await read("full.mp3") }] };
+
+  const cut = await findCut(ffmpeg, duration);
+  const ranges = [
+    { name: "part_1.mp3", args: ["-t", String(cut)], duration: cut },
+    { name: "part_2.mp3", args: ["-ss", String(cut)], duration: duration - cut },
+  ];
+  const parts: AudioPart[] = [];
+  for (const r of ranges) {
+    const code = await ffmpeg.exec([...r.args, "-i", "full.mp3", "-c", "copy", "-y", r.name]);
+    if (code !== 0) throw new Error("오디오를 둘로 나누지 못했어요.");
+    parts.push({ name: r.name, duration: r.duration, blob: await read(r.name) });
+  }
+  await ffmpeg.deleteFile("full.mp3");
+  return { duration, parts };
 }
 
-/** compressAudio로 만든 파일을 서버가 정한 구간대로 자른다. 재인코딩 없이 복사만 해서 빠르다. */
-export async function splitAudio(layout: ChunkRange[]) {
+/** 1부·2부를 나눌 곳: 한가운데 앞뒤 2분 안에서 가운데와 가장 가까운 무음. 없으면 한가운데. */
+async function findCut(ffmpeg: FFmpeg, duration: number) {
+  const mid = duration / 2;
+  const from = Math.max(0, mid - 120);
+  const silences: number[] = [];
+  let start = 0;
+  const onLog = ({ message }: { message: string }) => {
+    const s = message.match(/silence_start: ([\d.]+)/);
+    if (s) start = +s[1];
+    const e = message.match(/silence_end: ([\d.]+)/);
+    if (e) silences.push(from + (start + +e[1]) / 2);
+  };
+  ffmpeg.on("log", onLog);
+  try {
+    await ffmpeg.exec(["-ss", String(from), "-t", "240", "-i", "full.mp3", "-af", "silencedetect=noise=-35dB:d=0.4", "-f", "null", "-"]);
+  } finally {
+    ffmpeg.off("log", onLog);
+  }
+  const best = silences.sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid))[0] ?? mid;
+  // 두 부분 모두 한 파일 한도 안에 들어가게
+  return Math.min(MAX_PART_SEC, Math.max(duration - MAX_PART_SEC, best));
+}
+
+/** compressAudio가 만든 파일 하나를 서버가 정한 구간대로 자른다. 재인코딩 없이 복사만 해서 빠르다. */
+export async function splitAudio(source: string, layout: ChunkRange[]) {
   const ffmpeg = await getFFmpeg();
   const out: Blob[] = [];
   for (const c of layout) {
     const name = `chunk_${c.idx}.mp3`;
-    const code = await ffmpeg.exec(["-ss", String(c.start), "-t", String(c.end - c.start), "-i", chunkSource, "-c", "copy", "-y", name]);
+    const code = await ffmpeg.exec(["-ss", String(c.start), "-t", String(c.end - c.start), "-i", source, "-c", "copy", "-y", name]);
     if (code !== 0) throw new Error(`구간 ${c.idx + 1}을 자르지 못했어요.`);
     const data = (await ffmpeg.readFile(name)) as Uint8Array;
     await ffmpeg.deleteFile(name);
     out.push(new Blob([data as BlobPart], { type: "audio/mpeg" }));
   }
-  await ffmpeg.deleteFile("full.mp3");
-  if (chunkSource !== "full.mp3") await ffmpeg.deleteFile(chunkSource);
+  await ffmpeg.deleteFile(source);
   return out;
 }

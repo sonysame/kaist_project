@@ -62,8 +62,7 @@ export function AdminDashboard() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   async function removeJob(j: Stats["recentJobs"][number]) {
-    if (!confirm(`'${j.filename}' (${j.owner})을(를) 삭제할까요?
-대본·해석과 오디오 파일이 모두 지워지고 되돌릴 수 없어요.`)) return;
+    if (!confirm(`'${j.filename}' (${j.owner})을(를) 삭제할까요?\n대본·해석과 오디오 파일이 모두 지워지고 되돌릴 수 없어요.`)) return;
     setDeleting(j.id);
     setDeleteError(null);
     const r = await fetch(`/api/jobs/${j.id}`, { method: "DELETE" });

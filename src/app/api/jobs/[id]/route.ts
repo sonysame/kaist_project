@@ -9,7 +9,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/jobs/[id]">
   const auth = await requireJobReader(id);
   if ("error" in auth) return auth.error;
   const db = supabaseAdmin();
-  const [job, chunks, utterances] = await Promise.all([
+  const [job, chunks, utterances, prevPart] = await Promise.all([
     db.from("jobs").select("*").eq("id", id).maybeSingle(),
     db.from("chunks").select("idx, status, error").eq("job_id", id).order("idx"),
     db
@@ -17,6 +17,8 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/jobs/[id]">
       .select("id, chunk_idx, speaker, start_sec, end_sec, text_en, text_ko, words, is_ad")
       .eq("job_id", id)
       .order("start_sec"),
+    // 2부라면 1부 (긴 파일을 나눠 올렸을 때)
+    db.from("jobs").select("id").eq("next_part_id", id).maybeSingle(),
   ]);
   if (job.error || chunks.error || utterances.error) {
     return Response.json({ error: (job.error ?? chunks.error ?? utterances.error)!.message }, { status: 500 });
@@ -36,6 +38,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/jobs/[id]">
     chunks: chunks.data,
     utterances: utterances.data,
     audio_url,
+    prev_part_id: prevPart.data?.id ?? null,
     is_sample: isSampleJob(id),
     can_edit: auth.canEdit,
   });

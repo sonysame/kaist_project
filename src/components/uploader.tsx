@@ -40,37 +40,43 @@ export function Uploader() {
     try {
       setStage({ kind: "loading" });
       const { compressAudio, splitAudio } = await import("@/lib/audio-client");
-      const { duration, full } = await compressAudio(file, (ratio) => setStage({ kind: "compressing", ratio }));
+      const { parts } = await compressAudio(file, (ratio) => setStage({ kind: "compressing", ratio }));
 
-      const res = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, durationSec: duration }),
-      });
-      const job = (await res.json()) as CreateResponse & { error?: string };
-      if (!res.ok) throw new Error(job.error ?? "작업을 만들지 못했어요.");
-      refreshQuota(); // 헤더의 "오늘 업로드 1/3" 갱신
-
-      const parts = await splitAudio(job.layout);
-      const uploads = [
-        { ...job.full, blob: full },
-        ...job.chunks.map((c, i) => ({ ...c, blob: parts[i] })),
-      ];
+      // 3시간 반이 넘으면 1부·2부 두 학습 자료로 올린다 (업로드 횟수는 1번)
+      const dot = file.name.lastIndexOf(".");
+      const nameOf = (i: number) =>
+        parts.length === 1 ? file.name : dot > 0 ? `${file.name.slice(0, dot)} (${i + 1}부)${file.name.slice(dot)}` : `${file.name} (${i + 1}부)`;
       const storage = supabaseBrowser().storage.from("audio");
+      const ids: string[] = [];
       let done = 0;
-      setStage({ kind: "uploading", done, total: uploads.length });
-      for (const u of uploads) {
-        const { error } = await storage.uploadToSignedUrl(u.path, u.token, u.blob, { contentType: "audio/mpeg" });
-        if (error) throw new Error(`업로드에 실패했어요: ${error.message}`);
-        setStage({ kind: "uploading", done: ++done, total: uploads.length });
-      }
+      let total = 0;
+      for (const [i, part] of parts.entries()) {
+        const res = await fetch("/api/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: nameOf(i), durationSec: part.duration, previousPartId: ids[i - 1] }),
+        });
+        const job = (await res.json()) as CreateResponse & { error?: string };
+        if (!res.ok) throw new Error(job.error ?? "작업을 만들지 못했어요.");
+        if (i === 0) refreshQuota(); // 헤더의 "오늘 업로드 1/3" 갱신
+        ids.push(job.id);
 
-      await fetch(`/api/jobs/${job.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploaded: true }),
-      });
-      router.push(`/jobs/${job.id}`);
+        const chunks = await splitAudio(part.name, job.layout);
+        const uploads = [{ ...job.full, blob: part.blob }, ...job.chunks.map((c, k) => ({ ...c, blob: chunks[k] }))];
+        total += uploads.length;
+        setStage({ kind: "uploading", done, total });
+        for (const u of uploads) {
+          const { error } = await storage.uploadToSignedUrl(u.path, u.token, u.blob, { contentType: "audio/mpeg" });
+          if (error) throw new Error(`업로드에 실패했어요: ${error.message}`);
+          setStage({ kind: "uploading", done: ++done, total });
+        }
+        await fetch(`/api/jobs/${job.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uploaded: true }),
+        });
+      }
+      router.push(`/jobs/${ids[0]}`);
     } catch (err) {
       setStage({ kind: "error", message: err instanceof Error ? err.message : String(err) });
     }

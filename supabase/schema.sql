@@ -110,6 +110,9 @@ alter table public.chunks enable row level security;
 alter table public.utterances enable row level security;
 alter table public.vocab enable row level security;
 
+-- 3시간 반이 넘는 오디오는 1부·2부로 나눠 올린다. 1부가 2부를 가리킨다 (migrations/006_parts.sql과 같음)
+alter table public.jobs add column if not exists next_part_id uuid references public.jobs (id) on delete set null;
+
 -- 오디오 저장용 비공개 버킷 (무료 플랜의 파일당 최대 크기 50MB)
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('audio', 'audio', false, 52428800, array['audio/mpeg'])

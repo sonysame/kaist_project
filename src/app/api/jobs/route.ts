@@ -1,7 +1,7 @@
 import { BUCKET, supabaseAdmin } from "@/lib/supabase-server";
 import { audioPath, chunkLayout, chunkPath } from "@/lib/layout";
 import { currentUser, unauthorized } from "@/lib/auth";
-import { MAX_DURATION_SEC, maxDurationText } from "@/lib/audio-limits";
+import { MAX_PART_SEC, durationText } from "@/lib/audio-limits";
 import { getUploadLimit, recordUpload, uploadsToday } from "@/lib/quota";
 import { SAMPLE_JOB_IDS } from "@/lib/sample";
 
@@ -32,24 +32,47 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await currentUser();
   if (!user) return unauthorized();
-  const { filename, durationSec } = (await request.json()) as { filename?: string; durationSec?: number };
+  const { filename, durationSec, previousPartId } = (await request.json()) as {
+    filename?: string;
+    durationSec?: number;
+    previousPartId?: string; // 긴 파일의 2부를 만들 때 1부 작업 ID
+  };
   if (!filename || !durationSec || !(durationSec > 0)) {
     return Response.json({ error: "파일 이름과 길이가 필요해요." }, { status: 400 });
   }
-  if (durationSec > MAX_DURATION_SEC) {
-    return Response.json({ error: `${maxDurationText()}이 넘는 오디오는 올릴 수 없어요.` }, { status: 400 });
-  }
-
-  // 하루 업로드 제한 (한국 시간 기준, 지운 작업도 셈)
-  const limit = await getUploadLimit();
-  if ((await uploadsToday(user.id)) >= limit) {
-    return Response.json(
-      { error: `오늘은 ${limit}개까지 올릴 수 있어요. 내일 다시 올려 주세요.`, limitReached: true },
-      { status: 429 },
-    );
+  // 긴 파일은 브라우저가 1부·2부로 나눠서 보낸다. 한 부분은 파일 하나(50MB)에 들어가는 길이까지.
+  if (durationSec > MAX_PART_SEC + 60) {
+    return Response.json({ error: `${durationText(MAX_PART_SEC)}이 넘는 부분은 올릴 수 없어요.` }, { status: 400 });
   }
 
   const db = supabaseAdmin();
+  // 2부는 1부와 같은 파일이라 업로드 횟수를 다시 세지 않는다. 방금 만든 내 1부일 때만.
+  let previous: { id: string } | null = null;
+  if (previousPartId) {
+    const { data, error: prevError } = await db
+      .from("jobs")
+      .select("id, user_id, created_at, next_part_id")
+      .eq("id", previousPartId)
+      .maybeSingle();
+    if (prevError) {
+      return Response.json({ error: `긴 파일을 나눠 올리려면 migrations/006_parts.sql이 필요해요. (${prevError.message})` }, { status: 500 });
+    }
+    const fresh = data && Date.now() - new Date(data.created_at).getTime() < 3 * 3600_000;
+    if (!data || data.user_id !== user.id || data.next_part_id || !fresh) {
+      return Response.json({ error: "1부를 찾을 수 없어요. 파일을 처음부터 다시 올려 주세요." }, { status: 400 });
+    }
+    previous = data;
+  } else {
+    // 하루 업로드 제한 (한국 시간 기준, 지운 작업도 셈)
+    const limit = await getUploadLimit();
+    if ((await uploadsToday(user.id)) >= limit) {
+      return Response.json(
+        { error: `오늘은 ${limit}개까지 올릴 수 있어요. 내일 다시 올려 주세요.`, limitReached: true },
+        { status: 429 },
+      );
+    }
+  }
+
   const layout = chunkLayout(durationSec);
   const { data: job, error } = await db
     .from("jobs")
@@ -57,7 +80,17 @@ export async function POST(request: Request) {
     .select("id")
     .single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  await recordUpload(user.id);
+  if (previous) {
+    const { error: linkError } = await db.from("jobs").update({ next_part_id: job.id }).eq("id", previous.id);
+    if (linkError) {
+      return Response.json(
+        { error: `1부와 2부를 잇지 못했어요. migrations/006_parts.sql을 실행했는지 확인해 주세요. (${linkError.message})` },
+        { status: 500 },
+      );
+    }
+  } else {
+    await recordUpload(user.id);
+  }
 
   const { error: chunkError } = await db
     .from("chunks")
