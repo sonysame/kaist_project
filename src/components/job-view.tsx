@@ -447,7 +447,13 @@ export function JobView({ id }: { id: string }) {
 
       {job.status !== "done" && (
         <div className="mt-6">
-          <StatusPanel job={job} run={run} finished={finishedChunks} onRetry={job.can_process ? process : null} />
+          <StatusPanel
+            job={job}
+            run={run}
+            finished={finishedChunks}
+            onRetry={job.can_process ? process : null}
+            onRemove={job.can_process ? remove : null}
+          />
         </div>
       )}
 
@@ -633,16 +639,21 @@ function JobSkeleton() {
   );
 }
 
+const resumeText = (at: number) =>
+  new Date(at).toLocaleString("ko-KR", { month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Seoul" });
+
 function StatusPanel({
   job,
   run,
   finished,
   onRetry,
+  onRemove,
 }: {
   job: JobDetail;
   run: RunState;
   finished: number;
   onRetry: (() => void) | null; // 다시 시도할 수 없는 사람(주인·관리자가 아님)이면 null
+  onRemove: (() => void) | null;
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -651,6 +662,7 @@ function StatusPanel({
     return () => clearInterval(t);
   }, [run.kind]);
 
+  const [waitChosen, setWaitChosen] = useState(false);
   const ratio = job.chunk_count ? finished / job.chunk_count : 0;
   const failed = run.kind === "failed" || (job.status === "error" && run.kind === "idle");
   const message = run.kind === "failed" ? run.message : job.error;
@@ -691,21 +703,35 @@ function StatusPanel({
               )}
             </div>
           )}
-          {run.kind === "paused" && (
-            <p className="mt-3 rounded-lg bg-warm-soft px-3 py-2 text-sm">
-              Gemini 무료 한도를 오늘 다 썼어요. 한국 시간{" "}
-              <b>
-                {new Date(run.resumeAt).toLocaleString("ko-KR", {
-                  month: "long",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                  timeZone: "Asia/Seoul",
-                })}
-              </b>
-              부터 나머지 구간을 이어서 처리해요. 이 창을 열어 두거나 그 뒤에 다시 열면 돼요.
-            </p>
-          )}
+          {/* 하루 한도가 찼을 때: 처음엔 기다릴지 지울지 묻고, 기다리기로 하면 다시 처리되는 시각을 알려 준다 */}
+          {run.kind === "paused" &&
+            (onRemove && !waitChosen ? (
+              <div className="mt-3 rounded-lg bg-warm-soft px-3 py-3 text-sm">
+                <p>
+                  오늘 Gemini 처리 한도가 다 찼어요. 남은 구간은 한국 시간 <b>{resumeText(run.resumeAt)}</b>부터 처리할 수 있어요.
+                  어떻게 할까요?
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setWaitChosen(true)}
+                    className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white"
+                  >
+                    내일까지 기다리기
+                  </button>
+                  <button
+                    onClick={onRemove}
+                    className="rounded-xl border border-line bg-surface px-4 py-2 text-sm font-semibold hover:border-danger hover:text-danger"
+                  >
+                    지우기
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-3 rounded-lg bg-warm-soft px-3 py-2 text-sm">
+                한국 시간 <b>{resumeText(run.resumeAt)}</b>부터 나머지 구간을 이어서 처리해요. 이 창을 열어 두거나 그 뒤에 다시 열면
+                돼요.
+              </p>
+            ))}
           {!failed && run.kind !== "paused" && <p className="mt-2 text-xs text-muted">먼저 끝난 부분부터 아래에 나타나요. 창을 닫아도 다시 열면 이어서 처리돼요.</p>}
         </>
       )}

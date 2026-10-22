@@ -5,8 +5,7 @@ import { mergeSpeakers } from "@/lib/speakers";
 import { requireJobProcessor } from "@/lib/auth";
 import { correctJob, summarizeJob } from "@/lib/finish-steps";
 import { logError, resolveStoppedErrors } from "@/lib/error-log";
-import { dailyLimitReached, nextGeminiReset } from "@/lib/gemini-usage";
-import { getModel } from "@/lib/models";
+import { nextGeminiReset } from "@/lib/gemini-usage";
 import { buildUtterances, chooseCut, keepRange, mapSpeakers } from "@/lib/pipeline";
 import type { Word } from "@/lib/types";
 
@@ -48,11 +47,8 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/jobs/[id]/
 
   try {
     if (job.status === "error") await db.from("jobs").update({ status: "processing", error: null }).eq("id", id);
-
-    // 이 단계에 쓸 모델의 하루 한도를 이미 다 썼으면 Gemini를 부르지 않고 내일 이어서 하라고 알린다
-    if (await dailyLimitReached(await getModel(chunk?.status === "pending" ? "transcribe" : "text"))) {
-      throw new RateLimitError("오늘 Gemini 무료 한도를 다 썼어요.", true);
-    }
+    // 하루 한도는 앱이 센 숫자로 미리 막지 않는다. Gemini가 더 허용해 줄 수도 있어서, 실제로 한도 초과(PerDay 429)라고
+    // 답할 때만 멈추고 사용자에게 기다릴지 지울지 묻는다.
 
     // 모든 구간이 끝나면 마지막으로 대본 전체를 읽고 광고 표시 + 화자 이름 추측
     if (!chunk) {
