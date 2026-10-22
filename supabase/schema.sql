@@ -115,6 +115,21 @@ alter table public.jobs add column if not exists next_part_id uuid references pu
 -- 학습 자료 화면 맨 위에서 캐릭터가 말해 주는 한 줄 요약 (migrations/006_parts.sql과 같음)
 alter table public.jobs add column if not exists summary jsonb;
 
+-- 처리 중 오류와 건너뛴 단계 기록 (관리자 페이지, migrations/007_error_log.sql과 같음)
+create table if not exists public.error_log (
+  id bigint generated always as identity primary key,
+  job_id uuid references public.jobs (id) on delete set null,
+  filename text,
+  step text not null,
+  message text not null,
+  skipped boolean not null default false,
+  detail jsonb,
+  resolved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists error_log_created on public.error_log (created_at desc);
+alter table public.error_log enable row level security;
+
 -- 오디오 저장용 비공개 버킷 (무료 플랜의 파일당 최대 크기 50MB)
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('audio', 'audio', false, 52428800, array['audio/mpeg'])

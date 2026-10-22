@@ -60,6 +60,14 @@ export async function requireJobOwner(jobId: string): Promise<{ user: User } | {
   return { user };
 }
 
+/** 처리 이어 가기 권한: 주인 또는 관리자 (멈춘 남의 자료를 관리자가 다시 시도할 수 있게) */
+export async function requireJobProcessor(jobId: string): Promise<{ user: User } | { error: Response }> {
+  const user = await currentUser();
+  if (!user) return { error: unauthorized() };
+  if (isAdmin(user)) return { user };
+  return requireJobOwner(jobId);
+}
+
 /** 보기 권한: 내 작업이거나 샘플이면 볼 수 있다 (샘플은 로그인하지 않아도). canEdit은 주인일 때만 true. */
 export async function requireJobReader(
   jobId: string,

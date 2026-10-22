@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { clock } from "@/lib/format";
 import { AdminGemini, type GeminiStats } from "./admin-gemini";
+import { AdminErrors } from "./admin-errors";
 import { Trash } from "./icons";
 import { useAuth } from "./auth-provider";
 
@@ -87,6 +88,8 @@ export function AdminDashboard() {
     <div className="space-y-8">
       {/* Gemini 사용량 · 모델 설정 · 1시간 파일 예시 */}
       <AdminGemini stats={stats.gemini} onChanged={load} />
+
+      <AdminErrors />
 
       {/* 요약 숫자 */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -1,9 +1,10 @@
 import { BUCKET, supabaseAdmin } from "@/lib/supabase-server";
 import { chunkPath } from "@/lib/layout";
-import { RateLimitError, analyzeTranscript, findCorrections, summarizeTranscript, transcribeChunk, translateUtterances } from "@/lib/gemini";
+import { RateLimitError, analyzeTranscript, transcribeChunk, translateUtterances } from "@/lib/gemini";
 import { mergeSpeakers } from "@/lib/speakers";
-import { requireJobOwner } from "@/lib/auth";
-import { applyTranscriptCorrections } from "@/lib/corrections-db";
+import { requireJobProcessor } from "@/lib/auth";
+import { correctJob, summarizeJob } from "@/lib/finish-steps";
+import { logError, resolveStoppedErrors } from "@/lib/error-log";
 import { dailyLimitReached, nextGeminiReset } from "@/lib/gemini-usage";
 import { getModel } from "@/lib/models";
 import { buildUtterances, chooseCut, keepRange, mapSpeakers } from "@/lib/pipeline";
@@ -28,7 +29,7 @@ type ChunkRow = {
  */
 export async function POST(_request: Request, ctx: RouteContext<"/api/jobs/[id]/step">) {
   const { id } = await ctx.params;
-  const auth = await requireJobOwner(id);
+  const auth = await requireJobProcessor(id);
   if ("error" in auth) return auth.error;
   const db = supabaseAdmin();
 
@@ -57,6 +58,7 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/jobs/[id]/
     if (!chunk) {
       if (!job.analyzed) await analyze(id, job.speaker_names ?? {});
       await db.from("jobs").update({ status: "done", error: null, analyzed: true }).eq("id", id);
+      await resolveStoppedErrors(id);
       // 받아 적기가 끝난 구간 파일은 더 쓰지 않으니 지워서 저장 공간을 아낀다 (재생은 full.mp3)
       await db.storage
         .from(BUCKET)
@@ -79,7 +81,7 @@ export async function POST(_request: Request, ctx: RouteContext<"/api/jobs/[id]/
         { status: 429 },
       );
     }
-    console.error(err);
+    await logError({ jobId: id, step: !chunk ? "분석" : chunk.status === "pending" ? "받아 적기" : "해석", error: err });
     await db.from("jobs").update({ status: "error", error: message }).eq("id", id);
     if (chunk) await db.from("chunks").update({ error: message }).eq("job_id", id).eq("idx", chunk.idx);
     return Response.json({ error: message }, { status: 500 });
@@ -98,14 +100,8 @@ async function analyze(jobId: string, userNames: Record<string, string>) {
   const input = lines.map((l) => ({ id: l.id, speaker: l.speaker, text: l.text_en }));
   const { adIds, names } = await analyzeTranscript(input);
 
-  // 잘못 들은 고유명사 고치기 (예: 10 Cent → Tencent). 실패해도 대본은 그대로 두고 넘어간다.
-  try {
-    const fixedIds = await applyTranscriptCorrections(db, jobId, await findCorrections(input));
-    // 해석은 구간마다 교정 전에 만들어 둔 것이라, 고친 문장만 다시 해석한다 (실패하면 예전 해석을 그대로 둔다)
-    await retranslate(fixedIds).catch((err) => console.error("교정한 문장 다시 해석을 건너뜀:", err));
-  } catch (err) {
-    console.error("고유명사 교정을 건너뜀:", err);
-  }
+  // 잘못 들은 고유명사 고치기 (예: 10 Cent → Tencent). 실패해도 대본은 그대로 두고 넘어가고, 관리자 페이지에 남긴다.
+  await correctJob(jobId).catch((err) => logError({ jobId, step: "교정", error: err, skipped: true }));
 
   await db.from("utterances").update({ is_ad: false }).eq("job_id", jobId);
   for (let i = 0; i < adIds.length; i += 200) {
@@ -128,17 +124,8 @@ async function analyze(jobId: string, userNames: Record<string, string>) {
   }
   await db.from("jobs").update({ speaker_names: merged }).eq("id", jobId);
 
-  // 학습 자료 화면 맨 위에서 캐릭터가 말해 줄 한 줄 요약. 실패해도 대본은 그대로 두고 넘어간다.
-  try {
-    const ads = new Set(adIds);
-    const { data: fixed } = await db.from("utterances").select("id, speaker, text_en").eq("job_id", jobId).order("start_sec");
-    const content = (fixed ?? []).filter((l) => !ads.has(l.id));
-    const label = (spk: string) => merged[spk] ?? `화자 ${spk.slice(1)}`;
-    const summary = await summarizeTranscript(content.map((l) => ({ speaker: label(l.speaker), text: l.text_en })));
-    if (summary) await db.from("jobs").update({ summary }).eq("id", jobId);
-  } catch (err) {
-    console.error("요약을 건너뜀:", err);
-  }
+  // 학습 자료 화면 맨 위에서 캐릭터가 말해 줄 한 줄 요약. 실패해도 대본은 그대로 두고 넘어가고, 관리자 페이지에 남긴다.
+  await summarizeJob(jobId).catch((err) => logError({ jobId, step: "요약", error: err, skipped: true }));
 }
 
 async function transcribe(jobId: string, chunk: ChunkRow, chunks: ChunkRow[], nextSpeakerNo: number) {
@@ -201,22 +188,6 @@ async function transcribe(jobId: string, chunk: ChunkRow, chunks: ChunkRow[], ne
 }
 
 /** 번역이 안 된 발화를 최대 TRANSLATE_BATCH개 번역한다. 구간 번역이 다 끝나면 true. */
-/** 고유명사를 고친 문장만 골라 한국어 해석을 다시 만든다 */
-async function retranslate(ids: number[]) {
-  const db = supabaseAdmin();
-  for (let i = 0; i < ids.length; i += TRANSLATE_BATCH) {
-    const { data: rows } = await db
-      .from("utterances")
-      .select("id, speaker, text_en")
-      .in("id", ids.slice(i, i + TRANSLATE_BATCH));
-    if (!rows?.length) continue;
-    const ko = await translateUtterances(rows.map((u) => ({ id: u.id, speaker: u.speaker, text: u.text_en })), []);
-    await Promise.all(
-      rows.filter((u) => ko.get(u.id)).map((u) => db.from("utterances").update({ text_ko: ko.get(u.id) }).eq("id", u.id)),
-    );
-  }
-}
-
 async function translate(jobId: string, chunk: ChunkRow): Promise<boolean> {
   const db = supabaseAdmin();
   const { data: todo } = await db

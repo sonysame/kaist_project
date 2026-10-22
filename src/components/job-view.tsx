@@ -447,7 +447,7 @@ export function JobView({ id }: { id: string }) {
 
       {job.status !== "done" && (
         <div className="mt-6">
-          <StatusPanel job={job} run={run} finished={finishedChunks} onRetry={process} />
+          <StatusPanel job={job} run={run} finished={finishedChunks} onRetry={job.can_process ? process : null} />
         </div>
       )}
 
@@ -642,7 +642,7 @@ function StatusPanel({
   job: JobDetail;
   run: RunState;
   finished: number;
-  onRetry: () => void;
+  onRetry: (() => void) | null; // 다시 시도할 수 없는 사람(주인·관리자가 아님)이면 null
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -684,9 +684,11 @@ function StatusPanel({
           {failed && (
             <div className="mt-3 flex items-center gap-3">
               <p className="flex-1 text-sm text-danger">{message}</p>
-              <button onClick={onRetry} className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white">
-                다시 시도
-              </button>
+              {onRetry && (
+                <button onClick={onRetry} className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white">
+                  다시 시도
+                </button>
+              )}
             </div>
           )}
           {run.kind === "paused" && (

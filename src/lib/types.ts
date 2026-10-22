@@ -59,4 +59,6 @@ export type JobDetail = Job & {
   prev_part_id: string | null;
   /** 주인이면 true. 샘플을 다른 사람이 볼 때는 false라서 삭제·화자 수정을 숨긴다 */
   can_edit: boolean;
+  /** 멈춘 처리를 다시 시도할 수 있으면 true (주인 또는 관리자) */
+  can_process: boolean;
 };

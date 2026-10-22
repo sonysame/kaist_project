@@ -41,6 +41,8 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/jobs/[id]">
     prev_part_id: prevPart.data?.id ?? null,
     is_sample: isSampleJob(id),
     can_edit: auth.canEdit,
+    // 멈춘 처리를 다시 시도할 수 있는 사람: 주인 또는 관리자
+    can_process: auth.canEdit || isAdmin(auth.user),
   });
 }
 
