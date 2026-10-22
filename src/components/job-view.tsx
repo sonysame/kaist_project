@@ -22,6 +22,8 @@ type RunState =
 type Range = { start: number; end: number };
 
 const RATE_LIMIT_WAIT_MS = 60_000;
+const HICCUP_WAIT_MS = 30_000;
+const MAX_HICCUPS = 3;
 
 export function JobView({ id }: { id: string }) {
   const router = useRouter();
@@ -84,6 +86,7 @@ export function JobView({ id }: { id: string }) {
   const process = useCallback(async () => {
     const token = ++runToken.current;
     const alive = () => runToken.current === token;
+    let hiccups = 0; // 연결 끊김·서버 시간 초과(504)가 연달아 난 횟수
     while (alive()) {
       const current = await load().catch(() => null);
       if (!alive()) return; // 기다리는 동안 다른 루프가 시작됐으면 같은 구간을 두 번 처리하지 않도록 멈춘다
@@ -98,7 +101,17 @@ export function JobView({ id }: { id: string }) {
       const body = res ? await res.json().catch(() => ({})) : { error: "네트워크 오류가 났어요." };
       if (!alive()) return;
       if (res?.ok) {
+        hiccups = 0;
         if (body.done) break;
+        continue;
+      }
+      // 연결이 끊기거나 서버가 시간 초과로 끊긴 건(서버는 오류도 못 남김) 잠깐 쉬었다가 다시 해 본다
+      const hiccup = !res || res.status === 502 || res.status === 503 || res.status === 504;
+      if (hiccup && hiccups < MAX_HICCUPS) {
+        hiccups++;
+        const until = Date.now() + HICCUP_WAIT_MS;
+        setRun({ kind: "waiting", until, message: "서버 응답이 늦어 잠깐 기다려요." });
+        await new Promise((r) => setTimeout(r, HICCUP_WAIT_MS));
         continue;
       }
       if (res?.status === 429 && body.daily) {
@@ -134,13 +147,19 @@ export function JobView({ id }: { id: string }) {
     if (!nextId) return;
     let alive = true;
     (async () => {
+      let hiccups = 0;
       while (alive) {
         const res = await fetch(`/api/jobs/${nextId}/step`, { method: "POST" }).catch(() => null);
         const body = res ? await res.json().catch(() => ({})) : {};
         if (!alive) return;
         if (res?.ok) {
+          hiccups = 0;
           setNextPart(body.done ? "done" : "running");
           if (body.done) return;
+          continue;
+        }
+        if ((!res || [502, 503, 504].includes(res.status)) && hiccups++ < MAX_HICCUPS) {
+          await new Promise((r) => setTimeout(r, HICCUP_WAIT_MS));
           continue;
         }
         if (res?.status === 429 && !body.daily) {

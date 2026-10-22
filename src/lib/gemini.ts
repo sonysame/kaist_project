@@ -6,10 +6,20 @@ import { logGemini, type GeminiKind } from "./gemini-usage";
 import { getModel } from "./models";
 
 
+const GEMINI_TIMEOUT_MS = 240_000;
+
+/** 시간 제한에 걸려 끊긴 요청 (같은 단계 안에서 다시 시도하면 5분을 넘으니 잠깐 쉬었다가 이어 간다) */
+function isTimeout(err: unknown) {
+  const name = (err as { name?: string })?.name ?? "";
+  const msg = err instanceof Error ? err.message : String(err);
+  return /abort|timeout/i.test(name) || /aborted|timed? ?out|timeout/i.test(msg);
+}
+
 function client() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY 환경 변수가 없습니다.");
-  return new GoogleGenAI({ apiKey });
+  // Gemini가 답을 붙잡고 있으면 Vercel 5분 제한에 걸려 강제로 끊기고 아무 기록도 안 남는다. 그 전에 끊는다.
+  return new GoogleGenAI({ apiKey, httpOptions: { timeout: GEMINI_TIMEOUT_MS } });
 }
 
 /** 무료 한도 초과(429)를 구분해서 화면에 알려 주기 위한 에러. daily면 하루 한도라 내일까지 기다려야 한다. */
@@ -32,8 +42,8 @@ function rethrow(err: unknown): never {
     if (/PerDay/i.test(msg)) throw new RateLimitError("오늘 Gemini 무료 한도를 다 썼어요.", true);
     throw new RateLimitError("Gemini 무료 사용 한도에 도달했어요. 잠시 후 다시 시도해 주세요.");
   }
-  // 다시 시도해도 계속 붐비면 멈추지 않고, 분당 한도처럼 잠깐 기다렸다가 이어 가게 한다
-  if (isBusy(err)) throw new RateLimitError("Gemini가 지금 붐벼서 잠깐 기다렸다가 이어서 처리해요.");
+  // 다시 시도해도 계속 붐비거나 답이 너무 늦으면 멈추지 않고, 분당 한도처럼 잠깐 기다렸다가 이어 가게 한다
+  if (isBusy(err) || isTimeout(err)) throw new RateLimitError("Gemini가 지금 붐벼서 잠깐 기다렸다가 이어서 처리해요.");
   throw err instanceof Error ? err : new Error(err instanceof Error ? err.message : String(err));
 }
 
