@@ -10,6 +10,7 @@ import { WordPopover, type WordTarget } from "./word-popover";
 import { Player } from "./player";
 import { Theater } from "./theater";
 import { Puppet } from "./puppet";
+import { useAuth } from "./auth-provider";
 import { ArrowLeft, Clock, Download, Film, Megaphone, Text, Trash, Users } from "./icons";
 
 type RunState =
@@ -25,6 +26,7 @@ const RATE_LIMIT_WAIT_MS = 60_000;
 const HICCUP_WAIT_MS = 30_000;
 const MAX_HICCUPS = 3;
 const BUSY_POLL_MS = 8_000;
+const PROGRESS_SAVE_MS = 30_000;
 
 export function JobView({ id }: { id: string }) {
   const router = useRouter();
@@ -46,11 +48,77 @@ export function JobView({ id }: { id: string }) {
   const loopRange = useRef<Range | null>(null);
   const stopAt = useRef<number | null>(null); // "이 문장만 듣기"로 재생할 때 멈출 시각
   const scrollToAdPending = useRef(false);
+  const { user } = useAuth();
 
-  // 뒤로 가기 등으로 이 화면을 떠나면 소리를 멈춘다 (Next가 떠난 화면을 숨겨 두기만 해서 audio가 계속 재생될 수 있음)
+  // 어디까지 들었는지 계정에 저장한다 (로그인한 사람만). 위치가 그대로면 보내지 않는다.
+  const lastSaved = useRef<number | null>(null);
+  const saveProgress = useCallback(
+    (leaving = false) => {
+      const el = audio.current;
+      if (!el || !user || !el.duration) return;
+      const position = Math.floor(el.currentTime);
+      if (lastSaved.current !== null && Math.abs(position - lastSaved.current) < 3) return;
+      lastSaved.current = position;
+      const url = `/api/jobs/${id}/progress`;
+      const body = JSON.stringify({ position });
+      // 창을 닫거나 떠나는 순간에는 일반 요청이 끊길 수 있어서 sendBeacon으로 보낸다
+      if (leaving && navigator.sendBeacon) navigator.sendBeacon(url, body);
+      else fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body }).catch(() => {});
+    },
+    [id, user],
+  );
+
+  // 지난번에 들은 위치: 처음 열었을 때 한 번만 "이어서 듣기"를 권한다 (단어장의 ?t= 링크로 들어온 경우는 빼고)
+  const [resumeOffer, setResumeOffer] = useState<number | null>(null);
+  const offerChecked = useRef(false);
+  useEffect(() => {
+    if (offerChecked.current || !job) return;
+    offerChecked.current = true;
+    const pos = job.progress_sec ?? 0;
+    lastSaved.current = pos;
+    const fromLink = new URLSearchParams(window.location.search).has("t");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 불러온 자료를 처음 받았을 때 한 번만 정한다
+    if (!fromLink && pos > 15 && pos < job.duration_sec - 20) setResumeOffer(pos);
+  }, [job]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 재생을 시작하면 권하지 않는다
+    if (playing) setResumeOffer(null);
+  }, [playing]);
+
+  // 재생 중에는 30초마다, 멈추거나 다른 앱·탭으로 넘어가거나 창을 닫을 때도 저장한다
+  useEffect(() => {
+    if (!playing) return;
+    const t = setInterval(() => saveProgress(), PROGRESS_SAVE_MS);
+    return () => clearInterval(t);
+  }, [playing, saveProgress]);
   useEffect(() => {
     const el = audio.current;
-    return () => el?.pause();
+    if (!el) return;
+    const onPause = () => saveProgress();
+    const onHide = () => document.visibilityState === "hidden" && saveProgress(true);
+    const onPageHide = () => saveProgress(true);
+    el.addEventListener("pause", onPause);
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      el.removeEventListener("pause", onPause);
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [job?.audio_url, saveProgress]);
+
+  // 뒤로 가기 등으로 이 화면을 떠나면 들은 위치를 저장하고 소리를 멈춘다
+  // (Next가 떠난 화면을 숨겨 두기만 해서 audio가 계속 재생될 수 있음)
+  const saveRef = useRef(saveProgress);
+  useEffect(() => {
+    saveRef.current = saveProgress;
+  }, [saveProgress]);
+  useEffect(() => {
+    const el = audio.current;
+    return () => {
+      saveRef.current(true);
+      el?.pause();
+    };
   }, [job?.audio_url]);
 
   // 연속된 광고 문장을 하나로 묶은 구간 (목록 표시와 재생 건너뛰기에 씀)
@@ -450,6 +518,35 @@ export function JobView({ id }: { id: string }) {
           </button>
         )}
       </div>
+
+      {/* 지난번에 듣던 곳부터 이어 듣기 */}
+      {resumeOffer !== null && (
+        <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-accent/30 bg-accent-soft px-4 py-3">
+          <p className="min-w-0 flex-1 text-sm">
+            지난번에 <b className="tabular-nums">{clock(resumeOffer)}</b>까지 들었어요.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const at = Math.max(0, resumeOffer - 2);
+                const u = utterances[findActive(utterances, at)];
+                if (u) document.getElementById(`u-${u.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+                seekTo(at, true);
+                setResumeOffer(null);
+              }}
+              className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white"
+            >
+              이어서 듣기
+            </button>
+            <button
+              onClick={() => setResumeOffer(null)}
+              className="rounded-xl border border-line bg-surface px-4 py-2 text-sm font-semibold hover:border-accent"
+            >
+              처음부터
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 요약: 첫 화면 만화의 캐릭터가 말풍선으로 무슨 내용인지 알려 준다 */}
       {typeof job.summary === "string" && job.summary && (

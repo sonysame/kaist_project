@@ -118,6 +118,16 @@ alter table public.jobs add column if not exists summary jsonb;
 -- 같은 자료를 두 화면이 동시에 처리하지 않게 잠그는 시각 (migrations/008_step_lock.sql과 같음)
 alter table public.jobs add column if not exists step_lock_until timestamptz;
 
+-- 계정별로 학습 자료를 어디까지 들었는지 (migrations/009_progress.sql과 같음)
+create table if not exists public.study_progress (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  job_id uuid not null references public.jobs (id) on delete cascade,
+  position_sec double precision not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, job_id)
+);
+alter table public.study_progress enable row level security;
+
 -- 처리 중 오류와 건너뛴 단계 기록 (관리자 페이지, migrations/007_error_log.sql과 같음)
 create table if not exists public.error_log (
   id bigint generated always as identity primary key,

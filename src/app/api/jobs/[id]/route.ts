@@ -20,6 +20,10 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/jobs/[id]">
     // 2부라면 1부 (긴 파일을 나눠 올렸을 때)
     db.from("jobs").select("id").eq("next_part_id", id).maybeSingle(),
   ]);
+  // 로그인했으면 지난번에 어디까지 들었는지 (표가 아직 없으면 null)
+  const progress = auth.user
+    ? await db.from("study_progress").select("position_sec").eq("user_id", auth.user.id).eq("job_id", id).maybeSingle()
+    : null;
   if (job.error || chunks.error || utterances.error) {
     return Response.json({ error: (job.error ?? chunks.error ?? utterances.error)!.message }, { status: 500 });
   }
@@ -39,6 +43,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/jobs/[id]">
     utterances: utterances.data,
     audio_url,
     prev_part_id: prevPart.data?.id ?? null,
+    progress_sec: progress?.data?.position_sec ?? null,
     is_sample: isSampleJob(id),
     can_edit: auth.canEdit,
     // 멈춘 처리를 다시 시도할 수 있는 사람: 주인 또는 관리자

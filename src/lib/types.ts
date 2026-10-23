@@ -49,6 +49,8 @@ export type Job = {
   next_part_id?: string | null;
   /** 캐릭터가 말해 주는 한 줄 요약 (처리가 끝나면 생긴다) */
   summary?: string | null;
+  /** 로그인한 사람이 지난번에 어디까지 들었는지 (초) */
+  progress_sec?: number | null;
 };
 
 export type JobDetail = Job & {

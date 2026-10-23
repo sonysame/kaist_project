@@ -24,7 +24,15 @@ export async function GET() {
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (samples.error || mine.error) return Response.json({ error: (samples.error ?? mine.error)!.message }, { status: 500 });
-  const list = [...(samples.data ?? []).map((j) => ({ ...j, is_sample: true })), ...(mine.data ?? [])];
+  // 로그인했으면 자료마다 어디까지 들었는지 붙인다 (표가 아직 없으면 빈 값)
+  const { data: progress } = user
+    ? await db.from("study_progress").select("job_id, position_sec").eq("user_id", user.id)
+    : { data: [] };
+  const heard = new Map((progress ?? []).map((p) => [p.job_id, p.position_sec as number]));
+  const list = [...(samples.data ?? []).map((j) => ({ ...j, is_sample: true })), ...(mine.data ?? [])].map((j) => ({
+    ...j,
+    progress_sec: heard.get(j.id) ?? null,
+  }));
   return Response.json(list);
 }
 

@@ -87,6 +87,20 @@ export function RecentJobs() {
                 </span>
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.cls}`}>{s.label}</span>
               </div>
+              {/* 지난번에 어디까지 들었는지 */}
+              {!!j.progress_sec && j.progress_sec > 15 && (
+                <div className="mt-3">
+                  <div className="h-1 overflow-hidden rounded-full bg-line">
+                    <div
+                      className="h-full rounded-full bg-accent"
+                      style={{ width: `${Math.min(100, (j.progress_sec / j.duration_sec) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    <span className="tabular-nums">{clock(j.progress_sec)}</span>까지 들음
+                  </p>
+                </div>
+              )}
             </Link>
             {/* 샘플이 아닌 내 자료만 지울 수 있다 (링크 안에 버튼을 넣지 않도록 카드 위에 겹쳐 둔다) */}
             {!j.is_sample && (
